@@ -98,6 +98,28 @@ envelopes. 1.6 was chosen so neither tone is a harmonic of the other; speaker di
 Whether "left" actually comes out of the left speaker is still a human check: the live card
 names the channel of each beep as it happens.
 
+## Speaker levels
+
+* Weighting filters are IEC 61672 A and C realised as cascades of bilinear-transformed
+  first-order sections (poles at 20.6 Hz x2, 107.7 Hz, 737.9 Hz, 12.2 kHz x2 for A; 20.6 Hz x2
+  and 12.2 kHz x2 for C), normalised to 0 dB at 1 kHz. Bilinear warping makes the 12.2 kHz
+  pole slightly off at 48 kHz, which is irrelevant for pink-noise level work.
+* Levels are exponential mean-square with 125 ms (Fast) or 1 s (Slow) time constants; Leq is
+  the plain mean square since reset.
+* dB SPL = dBFS + calibration offset. The default offset of 120 dB is a placeholder; set it
+  against a real meter. iPhone microphones are flat enough from 100 Hz to 8 kHz that A/C
+  weighted pink-noise levels come out within about 1 dB of a Class 2 meter once the offset is
+  set, and channel-to-channel differences are good to a few tenths of a dB because the same
+  microphone, position and offset apply to every channel.
+* Sequence gating: a burst starts when the C-weighted Fast level exceeds target − 20 dB for
+  0.2 s and ends when it falls 3 dB below that for 0.3 s. The Leq of the burst skips its first
+  0.5 s. Bursts are assigned to channels in the file's order, so the phone must be started
+  before the first burst and must not miss one; the table shows which channel it expects next.
+* Pink noise in the files is Kellet's refined filter on white noise, independently seeded per
+  channel, scaled to the requested RMS after a 2 s measurement; LFE is low-passed at 120 Hz
+  (2nd-order Butterworth) and re-normalised so its in-band RMS equals the other channels.
+  The shell script measures ffmpeg's `anoisesrc` pink RMS and compensates the same way.
+
 ## Calibration
 
 The phone's camera and microphone timestamps come from one clock, but the pipelines in front

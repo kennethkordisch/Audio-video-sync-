@@ -37,6 +37,12 @@ enum AppSettings {
         static let measurementMode = "measurementMode"
         static let channelIDTones = "channelIDTones"
         static let readCaption = "readCaption"
+        static let splOffsetDB = "splOffsetDB"
+        static let splTargetDB = "splTargetDB"
+        static let lfeOffsetDB = "lfeOffsetDB"
+        static let splLayout = "splLayout"
+        static let splWeighting = "splWeighting"
+        static let splTimeWeighting = "splTimeWeighting"
     }
 
     static func registerDefaults() {
@@ -55,6 +61,12 @@ enum AppSettings {
             Key.measurementMode: MeasurementMode.repeating.rawValue,
             Key.channelIDTones: false,
             Key.readCaption: true,
+            Key.splOffsetDB: 120.0,
+            Key.splTargetDB: 85.0,
+            Key.lfeOffsetDB: 10.0,
+            Key.splLayout: "5.1",
+            Key.splWeighting: "C",
+            Key.splTimeWeighting: "Slow",
         ])
     }
 

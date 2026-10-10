@@ -13,6 +13,10 @@ import Foundation
 ///   --no-caption         --timecode        --slate SECONDS
 ///   --dnxhr lb|sq|hq     also write DNxHR MXF with the bundled ffmpeg
 ///   --preset NAME        start from a preset (see Presets.swift), then apply other options
+///
+///   --pink stereo|3.1|5.1|7.1   render a pink-noise speaker-level sequence instead of the sync pattern
+///   --segment SECONDS   --gap SECONDS   --pink-level DBFS   --repeats N   --all-segment   --no-lfe-lowpass
+///   --wav-only | --mov-only     (default: both; the movie uses --fps/--size/--codec)
 enum CommandLineRunner {
     static func runIfRequested() {
         let args = CommandLine.arguments
@@ -91,6 +95,39 @@ enum CommandLineRunner {
 
         let folder = URL(fileURLWithPath: outDir, isDirectory: true)
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+
+        if let layoutName = value(after: "--pink") {
+            var pink = PinkNoiseSpec()
+            guard let layout = PinkLayout.allCases.first(where: { $0.rawValue.lowercased() == layoutName.lowercased() }) else {
+                fputs("unknown layout '\(layoutName)' (stereo, 3.1, 5.1, 7.1)\n", stderr); return 2
+            }
+            pink.layout = layout
+            if let v = value(after: "--segment"), let d = Double(v) { pink.segmentSeconds = d }
+            if let v = value(after: "--gap"), let d = Double(v) { pink.gapSeconds = d }
+            if let v = value(after: "--pink-level"), let d = Double(v) { pink.levelDBFS = d }
+            if let v = value(after: "--repeats"), let n = Int(v) { pink.repeats = n }
+            if arguments.contains("--all-segment") { pink.includeAllSegment = true }
+            if arguments.contains("--no-lfe-lowpass") { pink.lfeLowPass = false }
+            let writer = PinkNoiseWriter(spec: pink, video: spec)
+            do {
+                if !arguments.contains("--mov-only") {
+                    let url = folder.appendingPathComponent("\(pink.baseName).wav")
+                    print("writing \(url.path)")
+                    try writer.writeWAV(to: url, progress: { _ in }, isCancelled: { false })
+                }
+                if !arguments.contains("--wav-only") {
+                    let url = folder.appendingPathComponent("\(pink.baseName).mov")
+                    print("writing \(url.path)")
+                    try writer.writeMovie(to: url, progress: { _ in }, isCancelled: { false })
+                }
+            } catch {
+                fputs("failed: \(error.localizedDescription)\n", stderr)
+                return 1
+            }
+            print("done")
+            return 0
+        }
+
         let rates = allRates ? FrameRate.all : [spec.frameRate]
         let ffmpeg = FFmpegExporter.locate()
         if dnx != nil && ffmpeg == nil {

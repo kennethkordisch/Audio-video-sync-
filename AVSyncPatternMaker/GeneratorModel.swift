@@ -11,7 +11,16 @@ final class GeneratorModel {
         ?? FileManager.default.homeDirectoryForCurrentUser
     var alsoDNxHR = false
     var dnxFlavour: DNxHRFlavour = .lb
-    let ffmpegURL = FFmpegExporter.locate()
+    let ffmpeg = FFmpegExporter.locate()
+    var ffmpegURL: URL? { ffmpeg?.url }
+
+    var ffmpegDescription: String {
+        guard let ffmpeg else { return "not available" }
+        switch ffmpeg.source {
+        case .bundled: return "bundled with the app"
+        case .system: return ffmpeg.url.path
+        }
+    }
 
     var isRunning = false
     var progress = 0.0

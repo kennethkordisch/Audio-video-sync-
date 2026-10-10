@@ -92,18 +92,18 @@ struct ContentView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Section("Avid DNxHR (via ffmpeg)") {
+                Section("Avid DNxHR MXF") {
                     if model.ffmpegURL != nil {
                         Toggle("Also write DNxHR OP1a MXF with 24-bit PCM", isOn: $model.alsoDNxHR)
                         Picker("Flavour", selection: $model.dnxFlavour) {
                             ForEach(DNxHRFlavour.allCases) { f in Text(f.rawValue).tag(f) }
                         }
                         .disabled(!model.alsoDNxHR)
-                        Text("Transcoded from the file above with \(model.ffmpegURL?.path ?? ""). Use a PCM audio setting so the MXF does not inherit AAC encoder smear.")
+                        Text("Transcoded from the file above with ffmpeg (\(model.ffmpegDescription)). Use a PCM audio setting so the MXF does not inherit AAC encoder smear.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     } else {
-                        Text("ffmpeg not found. Install it with Homebrew (brew install ffmpeg) to enable DNxHR MXF output. ProRes and H.264 need nothing extra.")
+                        Text("ffmpeg is not bundled in this build and was not found in Homebrew. Build again with network access (the Bundle ffmpeg phase fetches it), or brew install ffmpeg. ProRes and H.264 need nothing extra.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }

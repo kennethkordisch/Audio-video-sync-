@@ -111,13 +111,18 @@ AVFoundation, no ffmpeg needed for QuickTime formats:
 * Pattern: event period 1 to 5 s, flash length in frames, tone 500 Hz / 1 kHz / 2 kHz, tone
   length and level, both channels or alternating left/right per event (to catch swapped
   channels), optional dim caption with event counter, optional timecode and frame-number burn-in.
-* If Homebrew ffmpeg is installed, it can also transcode each file to DNxHR LB / SQ / HQ in
-  OP1a MXF with 24-bit PCM for Media Composer.
+* DNxHR LB / SQ / HQ in OP1a MXF with 24-bit PCM for Media Composer, through an ffmpeg that is
+  bundled inside the app. The first build runs `tools/fetch-ffmpeg-macos.sh`, which downloads a
+  static ffmpeg for your Mac's architecture into `Vendor/macos/` (gitignored); the "Bundle
+  ffmpeg" build phase copies it into the app and ad-hoc signs it. Drop your own `ffmpeg`
+  binary in `Vendor/macos/` to use a specific build. Without network and without a vendored
+  binary the app still builds and falls back to a Homebrew ffmpeg if one is installed.
 
 Events are placed on exact frame boundaries and the tone starts on the first white frame's
 timestamp, the same grid as the shell script, so files from either tool measure identically.
 Open the project in Xcode 16, build and run; it is signed ad hoc and not sandboxed so it can
-launch ffmpeg and write wherever you choose.
+launch the bundled ffmpeg and write wherever you choose. ffmpeg is LGPL/GPL software; if you
+redistribute the app, keep its licence notice alongside.
 
 ## Building the iOS app
 
@@ -150,6 +155,9 @@ AVSyncMeter.xcodeproj/
 AVSyncPatternMaker/               macOS pattern generator (SwiftUI + AVAssetWriter, optional ffmpeg for DNxHR)
 AVSyncPatternMaker.xcodeproj/
 tools/make_test_pattern.sh        regenerates the test pattern with ffmpeg (CLI alternative to the Mac app)
+tools/fetch-ffmpeg-macos.sh       downloads a static macOS ffmpeg into Vendor/macos for bundling
+tools/bundle-ffmpeg.sh            Xcode build phase: copies and signs ffmpeg into the Mac app
+Vendor/macos/                     vendored ffmpeg binary (gitignored)
 tools/validate_pattern.py         checks the pattern's internal timing and simulates the detectors
 docs/METHOD.md                    measurement method, error budget, limitations
 ```

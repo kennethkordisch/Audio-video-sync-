@@ -1,7 +1,12 @@
 import Foundation
 
-/// Optional DNxHR MXF output through a locally installed ffmpeg (Homebrew or MacPorts).
+/// DNxHR MXF output through ffmpeg: the copy bundled in the app by the "Bundle ffmpeg" build
+/// phase (tools/bundle-ffmpeg.sh), or a locally installed one (Homebrew or MacPorts).
 enum FFmpegExporter {
+    enum Source {
+        case bundled, system
+    }
+
     static let candidates = [
         "/opt/homebrew/bin/ffmpeg",
         "/usr/local/bin/ffmpeg",
@@ -9,9 +14,13 @@ enum FFmpegExporter {
         "/usr/bin/ffmpeg",
     ]
 
-    static func locate() -> URL? {
+    static func locate() -> (url: URL, source: Source)? {
+        if let bundled = Bundle.main.url(forResource: "ffmpeg", withExtension: nil),
+           FileManager.default.isExecutableFile(atPath: bundled.path) {
+            return (bundled, .bundled)
+        }
         for path in candidates where FileManager.default.isExecutableFile(atPath: path) {
-            return URL(fileURLWithPath: path)
+            return (URL(fileURLWithPath: path), .system)
         }
         return nil
     }

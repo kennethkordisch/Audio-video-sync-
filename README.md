@@ -99,7 +99,27 @@ Preferences > Video and Audio I/O.
 3. After 20 events (about 40 s, adjustable) it stops and shows the result, spread (MAD) and
    the individual recent offsets.
 
-## Building
+## Mac companion: AVSyncPatternMaker
+
+`AVSyncPatternMaker.xcodeproj` is a small macOS 14 app that renders the pattern natively with
+AVFoundation, no ffmpeg needed for QuickTime formats:
+
+* Frame rate (one, or all eight at once), resolution 720p to DCI 4K, duration presets or any
+  number of seconds.
+* Video: ProRes 422 Proxy / LT / 422 / HQ, H.264, HEVC. Audio: 24- or 16-bit PCM, or AAC.
+  ProRes and PCM go in `.mov`; H.264/HEVC with AAC go in `.mp4`.
+* Pattern: event period 1 to 5 s, flash length in frames, tone 500 Hz / 1 kHz / 2 kHz, tone
+  length and level, both channels or alternating left/right per event (to catch swapped
+  channels), optional dim caption with event counter, optional timecode and frame-number burn-in.
+* If Homebrew ffmpeg is installed, it can also transcode each file to DNxHR LB / SQ / HQ in
+  OP1a MXF with 24-bit PCM for Media Composer.
+
+Events are placed on exact frame boundaries and the tone starts on the first white frame's
+timestamp, the same grid as the shell script, so files from either tool measure identically.
+Open the project in Xcode 16, build and run; it is signed ad hoc and not sandboxed so it can
+launch ffmpeg and write wherever you choose.
+
+## Building the iOS app
 
 Requires Xcode 16 or newer and a physical iPhone (the simulator has no camera).
 
@@ -127,7 +147,9 @@ AVSyncMeter/                      app sources (Swift)
   Settings/   user settings + view
   Resources/  avsync_1080p{2398,24,25,2997,30,50,5994,60}.mp4 (bundled test patterns, 60 s each)
 AVSyncMeter.xcodeproj/
-tools/make_test_pattern.sh        regenerates the test pattern with ffmpeg
+AVSyncPatternMaker/               macOS pattern generator (SwiftUI + AVAssetWriter, optional ffmpeg for DNxHR)
+AVSyncPatternMaker.xcodeproj/
+tools/make_test_pattern.sh        regenerates the test pattern with ffmpeg (CLI alternative to the Mac app)
 tools/validate_pattern.py         checks the pattern's internal timing and simulates the detectors
 docs/METHOD.md                    measurement method, error budget, limitations
 ```

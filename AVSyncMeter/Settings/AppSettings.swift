@@ -1,0 +1,56 @@
+import Foundation
+
+/// User-adjustable parameters, stored in UserDefaults (bound with @AppStorage in SettingsView).
+enum AppSettings {
+    enum Key {
+        static let screenDiagonalInches = "screenDiagonalInches"
+        static let roomTemperatureC = "roomTemperatureC"
+        static let useManualDistance = "useManualDistance"
+        static let manualDistanceMeters = "manualDistanceMeters"
+        static let useExposureMidpoint = "useExposureMidpoint"
+        static let cameraTimestampOffsetMs = "cameraTimestampOffsetMs"
+        static let minFlashContrast = "minFlashContrast"
+        static let targetEventCount = "targetEventCount"
+    }
+
+    static func registerDefaults() {
+        UserDefaults.standard.register(defaults: [
+            Key.screenDiagonalInches: 65.0,
+            Key.roomTemperatureC: 20.0,
+            Key.useManualDistance: false,
+            Key.manualDistanceMeters: 3.0,
+            Key.useExposureMidpoint: true,
+            Key.cameraTimestampOffsetMs: 0.0,
+            Key.minFlashContrast: 12.0,
+            Key.targetEventCount: 20,
+        ])
+    }
+
+    /// Immutable copy of the settings taken at the start of a measurement run.
+    struct Snapshot {
+        var screenDiagonalInches: Double
+        var roomTemperatureC: Double
+        var useManualDistance: Bool
+        var manualDistanceMeters: Double
+        var useExposureMidpoint: Bool
+        var cameraTimestampOffsetMs: Double
+        var minFlashContrast: Double
+        var targetEventCount: Int
+
+        var screenDiagonalMeters: Double { screenDiagonalInches * 0.0254 }
+
+        static func load() -> Snapshot {
+            let d = UserDefaults.standard
+            return Snapshot(
+                screenDiagonalInches: d.double(forKey: Key.screenDiagonalInches),
+                roomTemperatureC: d.double(forKey: Key.roomTemperatureC),
+                useManualDistance: d.bool(forKey: Key.useManualDistance),
+                manualDistanceMeters: d.double(forKey: Key.manualDistanceMeters),
+                useExposureMidpoint: d.bool(forKey: Key.useExposureMidpoint),
+                cameraTimestampOffsetMs: d.double(forKey: Key.cameraTimestampOffsetMs),
+                minFlashContrast: d.double(forKey: Key.minFlashContrast),
+                targetEventCount: max(3, d.integer(forKey: Key.targetEventCount))
+            )
+        }
+    }
+}

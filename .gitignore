@@ -1,0 +1,19 @@
+# Xcode
+xcuserdata/
+*.xcuserstate
+DerivedData/
+build/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# macOS
+.DS_Store
+
+# Large regenerable test files (the AAC .mp4 is committed; the PCM .mov is not)
+AVSyncMeter/Resources/*_pcm.mov
+
+# Python
+__pycache__/

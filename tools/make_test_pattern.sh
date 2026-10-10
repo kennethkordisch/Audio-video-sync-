@@ -16,7 +16,8 @@
 #     -d  duration in seconds           (default 60; use 600-1800 for drift tests)
 #     -s  frame size                    (default 1920x1080)
 #     -m  also write DNxHR LB / 24-bit PCM MXF (OP1a) for Avid Media Composer link/import
-#     -p  also write ProRes 422 LT / 24-bit PCM QuickTime (.mov) for DaVinci Resolve, QuickTime Player, Premiere
+#     -p  also write ProRes 422 Proxy / 24-bit PCM QuickTime (.mov) for DaVinci Resolve, QuickTime Player, Premiere
+#     -P  ProRes flavour for -p: proxy (default), lt, 422, hq
 #     fps one or more of 23.976 24 25 29.97 30 50 59.94 60, or "all" (default)
 #
 # Requires ffmpeg with libx264, aac, dnxhd, prores_ks, drawbox, drawtext, aevalsrc (stock builds have them).
@@ -27,19 +28,30 @@ DURATION=60
 SIZE="1920x1080"
 WRITE_MXF=0
 WRITE_PRORES=0
-while getopts "o:d:s:mp" opt; do
+PRORES_FLAVOUR="proxy"
+while getopts "o:d:s:mpP:" opt; do
   case $opt in
     o) OUT_DIR="$OPTARG" ;;
     d) DURATION="$OPTARG" ;;
     s) SIZE="$OPTARG" ;;
     m) WRITE_MXF=1 ;;
     p) WRITE_PRORES=1 ;;
+    P) PRORES_FLAVOUR="$OPTARG" ;;
     *) echo "bad option" >&2; exit 2 ;;
   esac
 done
 shift $((OPTIND - 1))
 RATES=("$@")
 [ ${#RATES[@]} -eq 0 ] && RATES=(all)
+
+# prores_ks profile numbers: 0 proxy, 1 lt, 2 standard 422, 3 hq
+case "$PRORES_FLAVOUR" in
+  proxy) PRORES_PROFILE=0; PRORES_TAG="prores_proxy" ;;
+  lt)    PRORES_PROFILE=1; PRORES_TAG="prores_lt" ;;
+  422)   PRORES_PROFILE=2; PRORES_TAG="prores_422" ;;
+  hq)    PRORES_PROFILE=3; PRORES_TAG="prores_hq" ;;
+  *) echo "unsupported ProRes flavour: $PRORES_FLAVOUR (proxy|lt|422|hq)" >&2; exit 2 ;;
+esac
 [ "${RATES[0]}" = "all" ] && RATES=(23.976 24 25 29.97 30 50 59.94 60)
 
 W="${SIZE%x*}"
@@ -121,13 +133,13 @@ for RATE in "${RATES[@]}"; do
   fi
 
   if [ "$WRITE_PRORES" = "1" ]; then
-    echo "[$RATE fps] ProRes 422 LT + 24-bit PCM -> ${OUT_DIR}/${BASENAME}_prores_lt.mov"
-    # prores_ks profile 1 = 422 LT. Rec.709 tags so Resolve/QuickTime interpret the levels correctly.
+    echo "[$RATE fps] ProRes 422 ${PRORES_FLAVOUR} + 24-bit PCM -> ${OUT_DIR}/${BASENAME}_${PRORES_TAG}.mov"
+    # Rec.709 tags so Resolve/QuickTime interpret the levels correctly.
     ffmpeg -y -hide_banner -loglevel error "${common[@]}" \
-      -c:v prores_ks -profile:v 1 -vendor apl0 -pix_fmt yuv422p10le -r "$FPS_RATIONAL" \
+      -c:v prores_ks -profile:v "$PRORES_PROFILE" -vendor apl0 -pix_fmt yuv422p10le -r "$FPS_RATIONAL" \
       -color_primaries bt709 -color_trc bt709 -colorspace bt709 \
       -c:a pcm_s24le -ar "$SR" \
-      -f mov "${OUT_DIR}/${BASENAME}_prores_lt.mov"
+      -f mov "${OUT_DIR}/${BASENAME}_${PRORES_TAG}.mov"
   fi
 done
 

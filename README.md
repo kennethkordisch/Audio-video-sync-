@@ -37,7 +37,8 @@ Regenerate or make longer / Avid-native versions with `tools/make_test_pattern.s
 ```
 tools/make_test_pattern.sh                       # all 8 rates, 60 s, H.264/AAC MP4
 tools/make_test_pattern.sh -d 1800 -m 23.976     # 30 min 23.976 file + DNxHR LB / 24-bit PCM MXF for Avid
-tools/make_test_pattern.sh -d 600 -p 24          # 10 min 24 fps file + ProRes 422 LT / 24-bit PCM .mov for Resolve / QuickTime
+tools/make_test_pattern.sh -d 600 -p 24          # 10 min 24 fps file + ProRes 422 Proxy / 24-bit PCM .mov for Resolve / QuickTime
+tools/make_test_pattern.sh -p -P lt 24           # same, ProRes 422 LT (also: 422, hq)
 tools/make_test_pattern.sh -m -p all             # every rate, all three formats
 tools/make_test_pattern.sh -o ~/Desktop 25       # 25 fps only, to another folder
 ```
@@ -46,7 +47,7 @@ tools/make_test_pattern.sh -o ~/Desktop 25       # 25 fps only, to another folde
 |---|---|---|---|
 | H.264 + AAC, MP4 | always | app bundle, AirPlay, quick checks | small; AAC adds about +-2 ms of onset smear |
 | DNxHR LB + 24-bit PCM, OP1a MXF | `-m` | Avid Media Composer link/import | no transcode, no codec delay, ~5 MB/s |
-| ProRes 422 LT + 24-bit PCM, QuickTime .mov | `-p` | DaVinci Resolve, QuickTime Player, Premiere, Avid via link | 10-bit, Rec.709 tagged, ~13 MB/s |
+| ProRes 422 Proxy + 24-bit PCM, QuickTime .mov | `-p` (`-P lt/422/hq` for other flavours) | DaVinci Resolve, QuickTime Player, Premiere, Avid via link | 10-bit, Rec.709 tagged, Proxy ~6 MB/s, LT ~13 MB/s |
 
 Use the PCM variants for the real test and keep the MP4 for quick checks. Use a long file
 for drift runs: the phone's looping player adds a jump at every loop boundary.
@@ -82,7 +83,7 @@ Sound travels about 2.9 ms per metre (temperature adjustable in Settings).
 
 ## Using it with Resolve or QuickTime Player
 
-Render the ProRes LT .mov (`-p`), drop it on a timeline at the matching project rate (or open
+Render the ProRes Proxy .mov (`-p`, or `-P lt` for LT), drop it on a timeline at the matching project rate (or open
 it directly in QuickTime Player) and play out to the monitor under test. Measure the same
 way. In Resolve this is a direct check of the Video I/O "audio offset" setting under
 Preferences > Video and Audio I/O.

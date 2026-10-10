@@ -2,17 +2,28 @@ import SwiftUI
 
 struct MeasureView: View {
     @State private var model = MeasurementModel()
+    @AppStorage(AppSettings.Key.measurementMode) private var modeRaw = MeasurementMode.repeating.rawValue
+
+    private var mode: MeasurementMode { MeasurementMode(rawValue: modeRaw) ?? .repeating }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
+                    modePicker
                     cameraArea
                     phaseBanner
                     if model.snapshot.summary.count > 0 {
-                        resultCard
+                        if model.settings.mode == .calibration {
+                            calibrationCard
+                        } else {
+                            resultCard
+                        }
                     }
-                    if model.settings.driftMode || model.snapshot.drift != nil {
+                    if model.settings.mode == .singleEvent && !model.snapshot.pairs.isEmpty {
+                        popsCard
+                    }
+                    if model.settings.mode == .repeating && (model.settings.driftMode || model.snapshot.drift != nil) {
                         driftCard
                     }
                     distanceCard
@@ -25,7 +36,29 @@ struct MeasureView: View {
             .navigationTitle("AV Sync Meter")
         }
         .onAppear { model.refreshSettings() }
+        .onChange(of: modeRaw) { _, _ in model.refreshSettings() }
         .onDisappear { model.stop() }
+    }
+
+    private var modePicker: some View {
+        Picker("Mode", selection: $modeRaw) {
+            ForEach(MeasurementMode.allCases) { m in
+                Text(m.title).tag(m.rawValue)
+            }
+        }
+        .pickerStyle(.segmented)
+        .disabled(model.isRunning)
+    }
+
+    private var idleInstructions: String {
+        switch mode {
+        case .repeating:
+            return "Play the test pattern on the screen under test, aim the back camera at it so the whole screen is in view, and tap Start."
+        case .singleEvent:
+            return "Aim at the screen and tap Start, then play the sequence. Every 2-pop or sync plop that passes (one white frame + beep) is caught and listed. Stop when you have what you need."
+        case .calibration:
+            return "Use a chain you trust to be in sync: a laptop playing the pattern on its own screen with its built-in speakers is ideal. Put the phone about 1 m away, aim at the screen and tap Start. The remaining offset is the phone's own bias and can be saved."
+        }
     }
 
     // MARK: - Camera / status
@@ -54,7 +87,7 @@ struct MeasureView: View {
             case .idle, .finished, .failed:
                 VStack(spacing: 10) {
                     Image(systemName: "tv").font(.largeTitle).foregroundStyle(.white)
-                    Text("Play the test pattern on the screen under test, aim the back camera at it so the whole screen is in view, and tap Start.")
+                    Text(idleInstructions)
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.white.opacity(0.9))
                         .font(.callout)
@@ -99,6 +132,12 @@ struct MeasureView: View {
         case .settling: return "Settling and locking exposure. Keep still."
         case .measuring:
             let n = model.snapshot.summary.count
+            if model.settings.mode == .singleEvent {
+                return n == 0 ? "Listening for pops" : "Listening: \(n) pop\(n == 1 ? "" : "s") caught"
+            }
+            if model.settings.mode == .calibration {
+                return "Calibrating: \(n) of \(model.settings.targetEventCount) events"
+            }
             if model.settings.driftMode {
                 return "Drift run: \(clock(model.elapsedRunSeconds)) of \(model.settings.driftDurationMinutes) min, \(n) events"
             }
@@ -177,6 +216,70 @@ struct MeasureView: View {
                 .font(.subheadline.bold())
             Text(verdict.detail).font(.footnote).foregroundStyle(.secondary)
         }
+    }
+
+    private var popsCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Pops").font(.headline)
+            let t0 = model.snapshot.pairs.first?.flashTime ?? 0
+            ForEach(Array(model.snapshot.pairs.enumerated()), id: \.offset) { entry in
+                let pair = entry.element
+                HStack {
+                    Text("#\(entry.offset + 1)").foregroundStyle(.secondary)
+                    Text("+\(clock(pair.flashTime - t0))").foregroundStyle(.secondary)
+                    Spacer()
+                    Text(String(format: "%+.1f ms", pair.offset * 1000))
+                    Text(String(format: "%+.2f fr", model.frames(fromSeconds: pair.offset))).foregroundStyle(.secondary)
+                }
+                .font(.callout.monospacedDigit())
+            }
+            Text("Offsets are as heard at the phone. Subtract the sound travel shown below for the value at the screen.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private var calibrationCard: some View {
+        let summary = model.snapshot.summary
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("Calibration").font(.headline)
+            if let bias = model.calibrationBias {
+                Text(String(format: "Phone bias: %+.1f ms", bias * 1000)).font(.title2.bold())
+                Text(String(format: "Measured %+.1f ms at the phone over %d events (spread %.1f ms), minus %.1f ms of sound travel. Current stored camera offset: %+.1f ms.",
+                            (model.offsetAtListener ?? 0) * 1000, summary.count, (summary.mad ?? 0) * 1000,
+                            (model.propagationDelay ?? 0) * 1000, model.settings.cameraTimestampOffsetMs))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                if !model.isRunning {
+                    Button {
+                        model.saveCalibration()
+                    } label: {
+                        Label("Save as camera offset", systemImage: "checkmark.seal")
+                    }
+                    .buttonStyle(.bordered)
+                    if let saved = model.calibrationSavedMs {
+                        Text(String(format: "Saved. Camera offset is now %+.1f ms; this chain will read 0 on the next run.", saved))
+                            .font(.footnote)
+                            .foregroundStyle(.green)
+                    }
+                }
+                if (summary.mad ?? 0) > 0.004 {
+                    Text("Spread is high; repeat in a quieter, darker room before saving.")
+                        .font(.footnote)
+                        .foregroundStyle(.orange)
+                }
+            } else if model.offsetAtListener != nil {
+                Text("A distance is needed to remove sound travel: let LiDAR range, set the screen size, or enter the distance manually in Settings.")
+                    .font(.footnote)
+                    .foregroundStyle(.orange)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
     }
 
     private var driftCard: some View {

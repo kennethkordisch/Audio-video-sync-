@@ -81,6 +81,20 @@ Sound travels about 2.9 ms per metre (temperature adjustable in Settings).
    read the slope. 60 ms/min means a 1000/1001 clock mismatch somewhere (23.976 project with
    24 fps media or a 48.048 kHz audio clock, for instance).
 
+## Measurement modes
+
+The Measure tab has three modes:
+
+* **Pattern**: the repeating flash/beep file; stops after N events or runs a timed drift test.
+* **Two-pop**: catches individual pops. Start it, then play the sequence; every 2-pop or
+  sync plop that goes by (one white frame plus a beep) is listed with its time into the run,
+  offset in ms and in frames. It never stops on its own.
+* **Calibrate**: measures a chain you trust to be in sync and treats whatever is left, after
+  removing sound travel, as the phone's own camera-vs-microphone bias. Tap "Save as camera
+  offset" and later runs on that chain read zero. A laptop playing the pattern on its own
+  screen through its built-in speakers at about 1 m is a good reference; repeat if the spread
+  is above 4 ms. The stored offset is visible and resettable in Settings.
+
 ## Using it with Resolve or QuickTime Player
 
 Render the ProRes Proxy .mov (`-p`, or `-P lt` for LT), drop it on a timeline at the matching project rate (or open

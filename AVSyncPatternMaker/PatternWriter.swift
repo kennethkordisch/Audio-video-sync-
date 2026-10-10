@@ -230,7 +230,8 @@ final class PatternWriter {
         var status = CMBlockBufferCreateWithMemoryBlock(allocator: kCFAllocatorDefault, memoryBlock: nil,
                                                         blockLength: byteCount, blockAllocator: kCFAllocatorDefault,
                                                         customBlockSource: nil, offsetToData: 0,
-                                                        dataLength: byteCount, flags: 0, blockBufferOut: &blockBuffer)
+                                                        dataLength: byteCount, flags: kCMBlockBufferAssureMemoryNowFlag,
+                                                        blockBufferOut: &blockBuffer)
         guard status == kCMBlockBufferNoErr, let blockBuffer else { throw WriterError.setup("block buffer \(status)") }
         status = samples.withUnsafeBytes { raw in
             CMBlockBufferReplaceDataBytes(with: raw.baseAddress!, blockBuffer: blockBuffer,

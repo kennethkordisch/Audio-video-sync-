@@ -118,12 +118,39 @@ final class MeasurementModel {
     private func receive(_ newSnapshot: AnalysisPipeline.Snapshot) {
         snapshot = newSnapshot
         guard phase == .measuring else { return }
-        if settings.driftMode {
-            if elapsedRunSeconds >= Double(settings.driftDurationMinutes) * 60 { stop() }
-        } else if newSnapshot.summary.count >= settings.targetEventCount {
-            stop()
+        switch settings.mode {
+        case .singleEvent:
+            return   // keep listening until the user stops
+        case .calibration:
+            if newSnapshot.summary.count >= settings.targetEventCount { stop() }
+        case .repeating:
+            if settings.driftMode {
+                if elapsedRunSeconds >= Double(settings.driftDurationMinutes) * 60 { stop() }
+            } else if newSnapshot.summary.count >= settings.targetEventCount {
+                stop()
+            }
         }
     }
+
+    // MARK: - Calibration
+
+    /// In calibration mode the reference chain is assumed to be in sync, so whatever offset
+    /// remains after removing sound travel is the phone's own camera-vs-microphone bias (seconds).
+    var calibrationBias: Double? {
+        guard settings.mode == .calibration else { return nil }
+        return offsetAtSource
+    }
+
+    /// Folds the measured bias into the stored camera offset so future runs read zero on this chain.
+    func saveCalibration() {
+        guard let bias = calibrationBias else { return }
+        let newOffsetMs = settings.cameraTimestampOffsetMs + bias * 1000
+        UserDefaults.standard.set(newOffsetMs, forKey: AppSettings.Key.cameraTimestampOffsetMs)
+        settings = AppSettings.Snapshot.load()
+        calibrationSavedMs = newOffsetMs
+    }
+
+    var calibrationSavedMs: Double?
 
     // MARK: - Frames and export
 

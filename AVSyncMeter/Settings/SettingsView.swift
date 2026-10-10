@@ -65,11 +65,14 @@ struct SettingsView: View {
 
                 Section {
                     Toggle("Time frames at exposure midpoint", isOn: $useExposureMidpoint)
-                    numberField("Extra camera offset (ms)", value: $cameraTimestampOffsetMs)
+                    numberField("Camera offset (ms)", value: $cameraTimestampOffsetMs)
+                    if cameraTimestampOffsetMs != 0 {
+                        Button("Reset camera offset to 0") { cameraTimestampOffsetMs = 0 }
+                    }
                 } header: {
                     Text("Camera timing (advanced)")
                 } footer: {
-                    Text("Camera frame timestamps mark the start of exposure; adding half the exposure time centres them. At 240 fps this is at most 2 ms. The extra offset is added to every frame time and is for calibrating against a reference if you have one. Positive values make the reported audio lag larger.")
+                    Text("Camera frame timestamps mark the start of exposure; adding half the exposure time centres them. At 240 fps this is at most 2 ms. The camera offset is the phone's own camera-vs-microphone bias; set it with the Calibrate mode on the Measure tab against a chain you trust, or type a value. It is added to every frame time, so a positive value makes the reported audio lag smaller.")
                 }
 
                 Section("Sign convention") {

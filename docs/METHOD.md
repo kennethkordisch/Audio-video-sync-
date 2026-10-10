@@ -87,6 +87,24 @@ into the run and its size in ms and frames. A single-frame drop or repeat shows 
 Needs at least 6 events spanning 20 s; a 5 min run resolves about 0.2 ms/min (3 ppm), which is
 far below any real clock error.
 
+## Calibration
+
+The phone's camera and microphone timestamps come from one clock, but the pipelines in front
+of them (sensor readout, ISP, audio DSP) add latencies that iOS aligns only approximately.
+The residual is a constant for a given device and capture format. Calibrate mode measures a
+reference chain assumed to be in sync, subtracts sound travel, and stores the remainder as
+`cameraTimestampOffsetMs` (added to every frame time). Sign: a chain that truly is in sync but
+reads +b at the screen means the camera timestamps are b too early; adding b to them makes
+future readings zero. Calibrate once per phone, and again if iOS changes the capture format
+(check "Format" on the Live card).
+
+## Two-pop mode
+
+Same detectors, no auto-stop: each flash/beep pair is listed as it happens. Pairing window is
++-0.6 s, so pops at least 1.2 s apart are unambiguous. A real 2-pop (one frame of white and
+one frame of 1 kHz tone) is well inside what the detectors need: at 24 fps the flash lasts
+42 ms and the tone 42 ms.
+
 ## Error budget (typical, 60 Hz display)
 
 | Source | Size | Notes |

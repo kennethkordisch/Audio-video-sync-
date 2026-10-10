@@ -1,5 +1,25 @@
 import Foundation
 
+/// What a measurement run is for.
+enum MeasurementMode: String, CaseIterable, Identifiable {
+    /// Repeating flash/beep pattern; stop after N events or a drift run.
+    case repeating
+    /// Catch individual pops (2-pops, sync plops); never stops on its own.
+    case singleEvent
+    /// Measure a known-good reference chain to learn the phone's own camera/mic bias.
+    case calibration
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .repeating: return "Pattern"
+        case .singleEvent: return "Two-pop"
+        case .calibration: return "Calibrate"
+        }
+    }
+}
+
 /// User-adjustable parameters, stored in UserDefaults (bound with @AppStorage in SettingsView).
 enum AppSettings {
     enum Key {
@@ -14,6 +34,7 @@ enum AppSettings {
         static let patternFrameRate = "patternFrameRate"
         static let driftMode = "driftMode"
         static let driftDurationMinutes = "driftDurationMinutes"
+        static let measurementMode = "measurementMode"
     }
 
     static func registerDefaults() {
@@ -29,6 +50,7 @@ enum AppSettings {
             Key.patternFrameRate: TestPattern.defaultFrameRate.fps,
             Key.driftMode: false,
             Key.driftDurationMinutes: 5,
+            Key.measurementMode: MeasurementMode.repeating.rawValue,
         ])
     }
 
@@ -45,6 +67,7 @@ enum AppSettings {
         var patternFrameRate: Double
         var driftMode: Bool
         var driftDurationMinutes: Int
+        var mode: MeasurementMode
 
         var screenDiagonalMeters: Double { screenDiagonalInches * 0.0254 }
         var frameRate: PatternFrameRate { TestPattern.frameRate(matching: patternFrameRate) }
@@ -62,7 +85,8 @@ enum AppSettings {
                 targetEventCount: max(3, d.integer(forKey: Key.targetEventCount)),
                 patternFrameRate: d.double(forKey: Key.patternFrameRate),
                 driftMode: d.bool(forKey: Key.driftMode),
-                driftDurationMinutes: max(1, d.integer(forKey: Key.driftDurationMinutes))
+                driftDurationMinutes: max(1, d.integer(forKey: Key.driftDurationMinutes)),
+                mode: MeasurementMode(rawValue: d.string(forKey: Key.measurementMode) ?? "") ?? .repeating
             )
         }
     }

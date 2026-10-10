@@ -8,6 +8,10 @@ final class AnalysisPipeline {
         var summary = SyncSummary.empty
         /// Most recent offsets (seconds), newest last.
         var recentOffsets: [Double] = []
+        /// Every paired event, oldest first.
+        var pairs: [SyncPair] = []
+        var drift: DriftEstimate?
+        var slips: [FrameSlip] = []
         var flashCount = 0
         var beepCount = 0
         var lumaLevel = 0.0
@@ -26,7 +30,7 @@ final class AnalysisPipeline {
         static let empty = Snapshot()
     }
 
-    var onUpdate: ((Snapshot) -> Void)?
+    var onUpdate: (@Sendable (Snapshot) -> Void)?
 
     private let queue = DispatchQueue(label: "AVSyncMeter.analysis", qos: .userInteractive)
     private var settings = AppSettings.Snapshot.load()
@@ -172,6 +176,11 @@ final class AnalysisPipeline {
     private func refreshSummary() {
         snapshot.summary = analyzer.summary
         snapshot.recentOffsets = Array(analyzer.offsets.suffix(12))
+        snapshot.pairs = analyzer.pairs
+        snapshot.drift = DriftAnalyzer.estimate(pairs: analyzer.pairs)
+        snapshot.slips = DriftAnalyzer.slips(pairs: analyzer.pairs,
+                                             frameDurationMs: settings.frameRate.frameDuration * 1000,
+                                             slopeMsPerMinute: snapshot.drift?.slopeMsPerMinute)
     }
 
     private func emit(force: Bool) {

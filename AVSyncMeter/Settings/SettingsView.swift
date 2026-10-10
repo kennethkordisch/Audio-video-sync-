@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SettingsView: View {
+    @AppStorage(AppSettings.Key.patternFrameRate) private var patternFrameRate = TestPattern.defaultFrameRate.fps
     @AppStorage(AppSettings.Key.screenDiagonalInches) private var screenDiagonalInches = 65.0
     @AppStorage(AppSettings.Key.roomTemperatureC) private var roomTemperatureC = 20.0
     @AppStorage(AppSettings.Key.useManualDistance) private var useManualDistance = false
@@ -9,10 +10,44 @@ struct SettingsView: View {
     @AppStorage(AppSettings.Key.cameraTimestampOffsetMs) private var cameraTimestampOffsetMs = 0.0
     @AppStorage(AppSettings.Key.minFlashContrast) private var minFlashContrast = 12.0
     @AppStorage(AppSettings.Key.targetEventCount) private var targetEventCount = 20
+    @AppStorage(AppSettings.Key.driftMode) private var driftMode = false
+    @AppStorage(AppSettings.Key.driftDurationMinutes) private var driftDurationMinutes = 5
+
+    private var selectedRate: PatternFrameRate { TestPattern.frameRate(matching: patternFrameRate) }
 
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    Picker("Frame rate", selection: $patternFrameRate) {
+                        ForEach(TestPattern.frameRates) { rate in
+                            Text("\(rate.label) fps").tag(rate.fps)
+                        }
+                    }
+                } header: {
+                    Text("Project frame rate")
+                } footer: {
+                    Text(String(format: "Match your Media Composer project. The Test Pattern tab plays and exports the %@ fps file (events every %d frames, %d white frames), and every result is also shown in frames: one frame is %.2f ms.",
+                                selectedRate.label, TestPattern.periodFrames(selectedRate),
+                                TestPattern.flashFrames(selectedRate), selectedRate.frameDuration * 1000))
+                }
+
+                Section {
+                    Toggle("Drift mode (timed run)", isOn: $driftMode)
+                    if driftMode {
+                        Stepper("Run for \(driftDurationMinutes) min", value: $driftDurationMinutes, in: 1...60)
+                    } else {
+                        Stepper("Stop after \(targetEventCount) events", value: $targetEventCount, in: 3...1800)
+                    }
+                    numberField("Minimum flash contrast (0-255)", value: $minFlashContrast)
+                } header: {
+                    Text("Measurement")
+                } footer: {
+                    Text(driftMode
+                         ? "Drift mode keeps measuring for the chosen time and fits a straight line through offset vs. time. A 0.1% clock mismatch (23.976 vs 24, or 48 vs 48.048 kHz) shows up as 60 ms per minute. Use a long pattern file for this: the bundled ones are 60 s, so render one with tools/make_test_pattern.sh -d 1800 and play it from the source under test; the phone's own looping player would add a jump at every loop."
+                         : "Each event is one flash/beep pair, 2 s apart; 20 events take about 40 s. Lower the contrast threshold if a dim projector is not detected; raise it if room light causes false flashes.")
+                }
+
                 Section {
                     Toggle("Enter distance manually", isOn: $useManualDistance)
                     if useManualDistance {
@@ -26,15 +61,6 @@ struct SettingsView: View {
                     Text(String(format: "LiDAR is used when available (up to about 5 m). Otherwise the screen diagonal and the camera's focal length give the distance from how big the flash appears. Speed of sound at this temperature: %.0f m/s, i.e. %.2f ms per metre.",
                                 Acoustics.speedOfSound(celsius: roomTemperatureC),
                                 1000 / Acoustics.speedOfSound(celsius: roomTemperatureC)))
-                }
-
-                Section {
-                    Stepper("Stop after \(targetEventCount) events", value: $targetEventCount, in: 3...120)
-                    numberField("Minimum flash contrast (0-255)", value: $minFlashContrast)
-                } header: {
-                    Text("Measurement")
-                } footer: {
-                    Text("Each event is one flash/beep pair, 2 s apart. 20 events take about 40 s. Lower the contrast threshold if a dim projector is not detected; raise it if room light causes false flashes.")
                 }
 
                 Section {

@@ -11,6 +11,9 @@ enum AppSettings {
         static let cameraTimestampOffsetMs = "cameraTimestampOffsetMs"
         static let minFlashContrast = "minFlashContrast"
         static let targetEventCount = "targetEventCount"
+        static let patternFrameRate = "patternFrameRate"
+        static let driftMode = "driftMode"
+        static let driftDurationMinutes = "driftDurationMinutes"
     }
 
     static func registerDefaults() {
@@ -23,6 +26,9 @@ enum AppSettings {
             Key.cameraTimestampOffsetMs: 0.0,
             Key.minFlashContrast: 12.0,
             Key.targetEventCount: 20,
+            Key.patternFrameRate: TestPattern.defaultFrameRate.fps,
+            Key.driftMode: false,
+            Key.driftDurationMinutes: 5,
         ])
     }
 
@@ -36,8 +42,12 @@ enum AppSettings {
         var cameraTimestampOffsetMs: Double
         var minFlashContrast: Double
         var targetEventCount: Int
+        var patternFrameRate: Double
+        var driftMode: Bool
+        var driftDurationMinutes: Int
 
         var screenDiagonalMeters: Double { screenDiagonalInches * 0.0254 }
+        var frameRate: PatternFrameRate { TestPattern.frameRate(matching: patternFrameRate) }
 
         static func load() -> Snapshot {
             let d = UserDefaults.standard
@@ -49,7 +59,10 @@ enum AppSettings {
                 useExposureMidpoint: d.bool(forKey: Key.useExposureMidpoint),
                 cameraTimestampOffsetMs: d.double(forKey: Key.cameraTimestampOffsetMs),
                 minFlashContrast: d.double(forKey: Key.minFlashContrast),
-                targetEventCount: max(3, d.integer(forKey: Key.targetEventCount))
+                targetEventCount: max(3, d.integer(forKey: Key.targetEventCount)),
+                patternFrameRate: d.double(forKey: Key.patternFrameRate),
+                driftMode: d.bool(forKey: Key.driftMode),
+                driftDurationMinutes: max(1, d.integer(forKey: Key.driftDurationMinutes))
             )
         }
     }

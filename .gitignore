@@ -17,3 +17,6 @@ AVSyncMeter/Resources/*_pcm.mov
 
 # Python
 __pycache__/
+
+# Avid DNxHR MXF renders are large; generate them with tools/make_test_pattern.sh -m
+*_dnxhr.mxf

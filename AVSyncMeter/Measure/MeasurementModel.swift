@@ -53,9 +53,9 @@ final class MeasurementModel {
     }
 
     init() {
-        engine.onLumaFrame = { [pipeline] frame in pipeline.ingest(frame) }
-        engine.onAudio = { [pipeline] chunk in pipeline.ingest(chunk) }
-        pipeline.onUpdate = { [weak self] snapshot in
+        engine.onLumaFrame = { @Sendable [pipeline] frame in pipeline.ingest(frame) }
+        engine.onAudio = { @Sendable [pipeline] chunk in pipeline.ingest(chunk) }
+        pipeline.onUpdate = { @Sendable [weak self] snapshot in
             Task { @MainActor [weak self] in
                 self?.receive(snapshot)
             }
@@ -117,9 +117,60 @@ final class MeasurementModel {
 
     private func receive(_ newSnapshot: AnalysisPipeline.Snapshot) {
         snapshot = newSnapshot
-        if phase == .measuring, newSnapshot.summary.count >= settings.targetEventCount {
+        guard phase == .measuring else { return }
+        if settings.driftMode {
+            if elapsedRunSeconds >= Double(settings.driftDurationMinutes) * 60 { stop() }
+        } else if newSnapshot.summary.count >= settings.targetEventCount {
             stop()
         }
+    }
+
+    // MARK: - Frames and export
+
+    var frameRate: PatternFrameRate { settings.frameRate }
+
+    /// Seconds between the first and last paired event.
+    var elapsedRunSeconds: Double {
+        guard let first = snapshot.pairs.first, let last = snapshot.pairs.last else { return 0 }
+        return last.flashTime - first.flashTime
+    }
+
+    func frames(fromSeconds seconds: Double) -> Double {
+        seconds * frameRate.fps
+    }
+
+    /// CSV with a metadata header and one row per paired event.
+    func resultsCSV() -> String {
+        var lines: [String] = []
+        let formatter = ISO8601DateFormatter()
+        lines.append("# AVSyncMeter results, \(formatter.string(from: Date()))")
+        lines.append("# pattern_fps,\(frameRate.label)")
+        if let d = distance {
+            lines.append(String(format: "# distance_m,%.3f,%@", d.meters, d.source.rawValue))
+            lines.append(String(format: "# sound_travel_ms,%.2f", (propagationDelay ?? 0) * 1000))
+        } else {
+            lines.append("# distance_m,unknown")
+        }
+        lines.append(String(format: "# speed_of_sound_mps,%.1f", Acoustics.speedOfSound(celsius: settings.roomTemperatureC)))
+        if let m = offsetAtListener {
+            lines.append(String(format: "# median_offset_at_phone_ms,%.2f", m * 1000))
+        }
+        if let s = offsetAtSource {
+            lines.append(String(format: "# median_offset_at_screen_ms,%.2f", s * 1000))
+        }
+        if let drift = snapshot.drift {
+            lines.append(String(format: "# drift_ms_per_min,%.3f", drift.slopeMsPerMinute))
+            lines.append(String(format: "# drift_ppm,%.1f", drift.partsPerMillion))
+        }
+        lines.append("# sign: positive offset = audio later than video")
+        lines.append("event,run_time_s,flash_time_s,beep_time_s,offset_ms,offset_frames")
+        let t0 = snapshot.pairs.first?.flashTime ?? 0
+        for (i, pair) in snapshot.pairs.enumerated() {
+            lines.append(String(format: "%d,%.4f,%.6f,%.6f,%.3f,%.3f",
+                                i + 1, pair.flashTime - t0, pair.flashTime, pair.beepTime,
+                                pair.offset * 1000, frames(fromSeconds: pair.offset)))
+        }
+        return lines.joined(separator: "\n") + "\n"
     }
 
     private func run() async {

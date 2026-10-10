@@ -3,14 +3,24 @@ import AVKit
 import SwiftUI
 
 struct TestPatternView: View {
+    @AppStorage(AppSettings.Key.patternFrameRate) private var patternFrameRate = TestPattern.defaultFrameRate.fps
     @State private var player: AVPlayer?
     @State private var loopObserver: NSObjectProtocol?
+
+    private var rate: PatternFrameRate { TestPattern.frameRate(matching: patternFrameRate) }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    if let url = TestPattern.url {
+                    Picker("Frame rate", selection: $patternFrameRate) {
+                        ForEach(TestPattern.frameRates) { r in
+                            Text("\(r.label) fps").tag(r.fps)
+                        }
+                    }
+                    .pickerStyle(.menu)
+
+                    if let url = TestPattern.url(for: rate) {
                         VideoPlayer(player: player)
                             .aspectRatio(16 / 9, contentMode: .fit)
                             .background(Color.black)
@@ -34,7 +44,7 @@ struct TestPatternView: View {
                     } else {
                         ContentUnavailableView("Test pattern missing",
                                                systemImage: "film",
-                                               description: Text("Run tools/make_test_pattern.sh and add the MP4 to AVSyncMeter/Resources."))
+                                               description: Text("\(TestPattern.fileName(for: rate)) is not in the app bundle. Run tools/make_test_pattern.sh and add it to AVSyncMeter/Resources."))
                     }
                     instructions
                 }
@@ -42,14 +52,17 @@ struct TestPatternView: View {
             }
             .navigationTitle("Test Pattern")
         }
-        .onAppear { setUpPlayer() }
+        .onAppear { rebuildPlayer() }
+        .onChange(of: patternFrameRate) { _, _ in rebuildPlayer() }
     }
 
     private var patternDescription: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("avsync_1080p60.mp4").font(.headline)
-            Text(String(format: "1920x1080, %.0f fps, H.264 + AAC. Black screen; every %.1f s the whole frame turns white for %.0f ms while a %.0f Hz tone plays for %.0f ms. Flash and tone start on the same timestamp.",
-                        TestPattern.frameRate, TestPattern.period, TestPattern.flashDuration * 1000,
+            Text(TestPattern.fileName(for: rate)).font(.headline)
+            Text(String(format: "1920x1080 at %@ fps, 60 s, H.264 + AAC. Black screen; every %d frames (%.3f s) the whole frame turns white for %d frames while a %.0f Hz tone plays for %.0f ms. The first white frame and the first tone sample share the same timestamp, on a frame boundary.",
+                        rate.label, TestPattern.periodFrames(rate),
+                        Double(TestPattern.periodFrames(rate)) / rate.fps,
+                        TestPattern.flashFrames(rate),
                         TestPattern.toneFrequency, TestPattern.toneDuration * 1000))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -58,21 +71,27 @@ struct TestPatternView: View {
 
     private var instructions: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("How to use it").font(.headline)
+            Text("Using it with Media Composer").font(.headline)
             Text("""
-            1. Get the pattern onto the screen under test. Best: Export it and play it from the real source (media player, Apple TV, PC, Blu-ray player via USB) so the whole chain is measured. Quickest: tap the AirPlay button and send it to an Apple TV.
-            2. Switch to Measure, aim the back camera at the screen and tap Start.
-            3. Read the two numbers: the offset at the phone (what you experience in that seat) and the offset at the screen (with the sound's travel time removed).
+            1. Export this file (AirDrop or Files) and link or import it into a bin in a project at the same frame rate; or render the DNxHR MXF variant with tools/make_test_pattern.sh -m for a native Avid clip (use -d 1800 for a 30 min drift clip). Put it in a sequence and play out through the monitor and speakers you want to check.
+            2. In Measure, aim the back camera at the monitor and tap Start. Results are shown in ms and in frames at the project rate.
+            3. Compare desktop playback with hardware I/O, and with and without any output delay setting, to see what each stage adds.
 
-            If AirPlay playback stops when measurement starts, the capture session took over the audio session. Play the file from another device instead.
+            For a quick check without Avid, tap the AirPlay button to send the file to an Apple TV. If AirPlay stops when measurement starts, play from another device instead.
             """)
             .font(.footnote)
             .foregroundStyle(.secondary)
         }
     }
 
-    private func setUpPlayer() {
-        guard player == nil, let url = TestPattern.url else { return }
+    private func rebuildPlayer() {
+        if let loopObserver {
+            NotificationCenter.default.removeObserver(loopObserver)
+            self.loopObserver = nil
+        }
+        player?.pause()
+        player = nil
+        guard let url = TestPattern.url(for: rate) else { return }
         let item = AVPlayerItem(url: url)
         let newPlayer = AVPlayer(playerItem: item)
         newPlayer.allowsExternalPlayback = true

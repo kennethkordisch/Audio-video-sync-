@@ -12,6 +12,9 @@ struct MeasureView: View {
                     if model.snapshot.summary.count > 0 {
                         resultCard
                     }
+                    if model.settings.driftMode || model.snapshot.drift != nil {
+                        driftCard
+                    }
                     distanceCard
                     liveCard
                     controlButton
@@ -96,6 +99,9 @@ struct MeasureView: View {
         case .settling: return "Settling and locking exposure. Keep still."
         case .measuring:
             let n = model.snapshot.summary.count
+            if model.settings.driftMode {
+                return "Drift run: \(clock(model.elapsedRunSeconds)) of \(model.settings.driftDurationMinutes) min, \(n) events"
+            }
             return "Measuring: \(n) of \(model.settings.targetEventCount) events"
         case .finished: return "Done"
         case .failed(let message): return message
@@ -111,7 +117,7 @@ struct MeasureView: View {
                 let listenerMs = listener * 1000
                 Text(SyncStandards.describe(offsetMs: listenerMs))
                     .font(.title2.bold())
-                Text("as seen and heard at the phone")
+                Text("as seen and heard at the phone  (\(framesText(listener)))")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
@@ -119,8 +125,8 @@ struct MeasureView: View {
                     Divider()
                     Text(SyncStandards.describe(offsetMs: source * 1000))
                         .font(.title3.bold())
-                    Text(String(format: "at the screen: %.1f ms of sound travel over %.2f m (%@) removed",
-                                travel * 1000, distance.meters, distance.source.rawValue))
+                    Text(String(format: "at the screen (%@): %.1f ms of sound travel over %.2f m (%@) removed",
+                                framesText(source), travel * 1000, distance.meters, distance.source.rawValue))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                     verdictView(offsetMs: source * 1000)
@@ -143,6 +149,13 @@ struct MeasureView: View {
                         .font(.caption.monospaced())
                         .foregroundStyle(.secondary)
                 }
+                if !model.isRunning {
+                    ShareLink(item: ResultsExport(csv: model.resultsCSV()),
+                              preview: SharePreview("AV sync results (CSV)")) {
+                        Label("Export CSV of all \(summary.count) events", systemImage: "square.and.arrow.up")
+                    }
+                    .font(.subheadline)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -164,6 +177,45 @@ struct MeasureView: View {
                 .font(.subheadline.bold())
             Text(verdict.detail).font(.footnote).foregroundStyle(.secondary)
         }
+    }
+
+    private var driftCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Drift").font(.headline)
+            if let drift = model.snapshot.drift {
+                HStack {
+                    statistic("Slope", String(format: "%+.2f ms/min", drift.slopeMsPerMinute))
+                    statistic("Per hour", String(format: "%+.1f frames", drift.framesPerHour(fps: model.frameRate.fps)))
+                    statistic("Over run", String(format: "%+.1f ms", drift.totalDriftMs))
+                    statistic("Ratio", String(format: "%+.0f ppm", drift.partsPerMillion))
+                }
+                Text(DriftAnalyzer.interpretation(of: drift))
+                    .font(.footnote)
+                Text(String(format: "%d events over %@, residual spread %.2f ms (MAD).",
+                            drift.count, clock(drift.spanSeconds), drift.residualMadMs))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text(String(format: "Needs at least %d events over %.0f s. Keep the pattern running.",
+                            DriftAnalyzer.minimumCount, DriftAnalyzer.minimumSpanSeconds))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            if !model.snapshot.slips.isEmpty {
+                Divider()
+                Text("Steps in the offset (frame slips)").font(.subheadline.bold())
+                ForEach(model.snapshot.slips) { slip in
+                    Text(String(format: "at %@: %+.1f ms (%+.2f frames)",
+                                clock(slip.time), slip.deltaMs, slip.deltaMs / 1000 * model.frameRate.fps))
+                        .font(.caption.monospaced())
+                }
+            } else if model.snapshot.drift != nil {
+                Text("No frame slips detected.").font(.footnote).foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
     }
 
     private var distanceCard: some View {
@@ -260,6 +312,15 @@ struct MeasureView: View {
             Text(value).font(.callout.monospacedDigit()).lineLimit(1).minimumScaleFactor(0.6)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func framesText(_ seconds: Double) -> String {
+        String(format: "%+.2f frames at %@ fps", model.frames(fromSeconds: seconds), model.frameRate.label)
+    }
+
+    private func clock(_ seconds: Double) -> String {
+        let total = Int(seconds.rounded())
+        return String(format: "%d:%02d", total / 60, total % 60)
     }
 
     private func milliseconds(_ seconds: Double?, signed: Bool = false) -> String {

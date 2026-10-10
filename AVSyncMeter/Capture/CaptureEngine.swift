@@ -36,9 +36,9 @@ final class CaptureEngine: NSObject {
     let session = AVCaptureSession()
 
     /// Called on a background queue for every camera frame.
-    var onLumaFrame: ((LumaFrame) -> Void)?
+    var onLumaFrame: (@Sendable (LumaFrame) -> Void)?
     /// Called on a background queue for every audio buffer.
-    var onAudio: ((AudioSampleConverter.Chunk) -> Void)?
+    var onAudio: (@Sendable (AudioSampleConverter.Chunk) -> Void)?
 
     private(set) var nominalFrameRate: Double = 0
     private(set) var formatSummary: String = ""
@@ -192,10 +192,17 @@ final class CaptureEngine: NSObject {
             return area(a) > area(b)
         }) else { return }
 
-        let fps = maxFPS(best).rounded()
+        // Take the frame duration from the range itself: a duration outside the supported range
+        // raises an Objective-C exception that Swift cannot catch.
+        guard let range = best.videoSupportedFrameRateRanges.max(by: { $0.maxFrameRate < $1.maxFrameRate }),
+              range.maxFrameRate > 0 else { return }
+        let fps = min(240, range.maxFrameRate)
+        let duration = fps < range.maxFrameRate
+            ? CMTime(value: 1, timescale: CMTimeScale(fps.rounded(.down)))
+            : range.minFrameDuration
+
         try device.lockForConfiguration()
         device.activeFormat = best
-        let duration = CMTime(value: 1, timescale: CMTimeScale(fps))
         device.activeVideoMinFrameDuration = duration
         device.activeVideoMaxFrameDuration = duration
         device.unlockForConfiguration()

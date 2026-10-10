@@ -11,26 +11,29 @@
 # the file is playing. It is dim on purpose so it barely moves the camera's luminance reading.
 #
 # Usage:
-#   tools/make_test_pattern.sh [-o out_dir] [-d seconds] [-s WxH] [-m] [fps ...]
+#   tools/make_test_pattern.sh [-o out_dir] [-d seconds] [-s WxH] [-m] [-p] [fps ...]
 #     -o  output directory              (default AVSyncMeter/Resources)
 #     -d  duration in seconds           (default 60; use 600-1800 for drift tests)
 #     -s  frame size                    (default 1920x1080)
 #     -m  also write DNxHR LB / 24-bit PCM MXF (OP1a) for Avid Media Composer link/import
+#     -p  also write ProRes 422 LT / 24-bit PCM QuickTime (.mov) for DaVinci Resolve, QuickTime Player, Premiere
 #     fps one or more of 23.976 24 25 29.97 30 50 59.94 60, or "all" (default)
 #
-# Requires ffmpeg with libx264, aac, dnxhd, drawbox, drawtext, aevalsrc (stock builds have them).
+# Requires ffmpeg with libx264, aac, dnxhd, prores_ks, drawbox, drawtext, aevalsrc (stock builds have them).
 set -euo pipefail
 
 OUT_DIR="AVSyncMeter/Resources"
 DURATION=60
 SIZE="1920x1080"
 WRITE_MXF=0
-while getopts "o:d:s:m" opt; do
+WRITE_PRORES=0
+while getopts "o:d:s:mp" opt; do
   case $opt in
     o) OUT_DIR="$OPTARG" ;;
     d) DURATION="$OPTARG" ;;
     s) SIZE="$OPTARG" ;;
     m) WRITE_MXF=1 ;;
+    p) WRITE_PRORES=1 ;;
     *) echo "bad option" >&2; exit 2 ;;
   esac
 done
@@ -115,6 +118,16 @@ for RATE in "${RATES[@]}"; do
       -c:v dnxhd -profile:v dnxhr_lb -pix_fmt yuv422p -r "$FPS_RATIONAL" \
       -c:a pcm_s24le -ar "$SR" \
       -f mxf "${OUT_DIR}/${BASENAME}_dnxhr.mxf"
+  fi
+
+  if [ "$WRITE_PRORES" = "1" ]; then
+    echo "[$RATE fps] ProRes 422 LT + 24-bit PCM -> ${OUT_DIR}/${BASENAME}_prores_lt.mov"
+    # prores_ks profile 1 = 422 LT. Rec.709 tags so Resolve/QuickTime interpret the levels correctly.
+    ffmpeg -y -hide_banner -loglevel error "${common[@]}" \
+      -c:v prores_ks -profile:v 1 -vendor apl0 -pix_fmt yuv422p10le -r "$FPS_RATIONAL" \
+      -color_primaries bt709 -color_trc bt709 -colorspace bt709 \
+      -c:a pcm_s24le -ar "$SR" \
+      -f mov "${OUT_DIR}/${BASENAME}_prores_lt.mov"
   fi
 done
 

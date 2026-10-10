@@ -20,3 +20,4 @@ __pycache__/
 
 # Avid DNxHR MXF renders are large; generate them with tools/make_test_pattern.sh -m
 *_dnxhr.mxf
+*_prores_lt.mov

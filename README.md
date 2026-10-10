@@ -37,13 +37,19 @@ Regenerate or make longer / Avid-native versions with `tools/make_test_pattern.s
 ```
 tools/make_test_pattern.sh                       # all 8 rates, 60 s, H.264/AAC MP4
 tools/make_test_pattern.sh -d 1800 -m 23.976     # 30 min 23.976 file + DNxHR LB / 24-bit PCM MXF for Avid
+tools/make_test_pattern.sh -d 600 -p 24          # 10 min 24 fps file + ProRes 422 LT / 24-bit PCM .mov for Resolve / QuickTime
+tools/make_test_pattern.sh -m -p all             # every rate, all three formats
 tools/make_test_pattern.sh -o ~/Desktop 25       # 25 fps only, to another folder
 ```
 
-The MXF (OP1a, DNxHR LB, 48 kHz 24-bit PCM) links or imports straight into a Media Composer
-bin with no transcode and no AAC encoder delay; use that for the real test and keep the MP4
-for quick checks. Use a long file for drift runs: the phone's looping player adds a jump at
-every loop boundary.
+| Format | Flag | For | Notes |
+|---|---|---|---|
+| H.264 + AAC, MP4 | always | app bundle, AirPlay, quick checks | small; AAC adds about +-2 ms of onset smear |
+| DNxHR LB + 24-bit PCM, OP1a MXF | `-m` | Avid Media Composer link/import | no transcode, no codec delay, ~5 MB/s |
+| ProRes 422 LT + 24-bit PCM, QuickTime .mov | `-p` | DaVinci Resolve, QuickTime Player, Premiere, Avid via link | 10-bit, Rec.709 tagged, ~13 MB/s |
+
+Use the PCM variants for the real test and keep the MP4 for quick checks. Use a long file
+for drift runs: the phone's looping player adds a jump at every loop boundary.
 
 Why a flash + beep and not something fancier: a full-frame white step gives the camera the
 largest possible luminance change (so it works on dim projectors and small screens in the
@@ -73,6 +79,13 @@ Sound travels about 2.9 ms per metre (temperature adjustable in Settings).
 3. For drift, switch on Drift mode in Settings (1 to 60 min), use a long pattern file, and
    read the slope. 60 ms/min means a 1000/1001 clock mismatch somewhere (23.976 project with
    24 fps media or a 48.048 kHz audio clock, for instance).
+
+## Using it with Resolve or QuickTime Player
+
+Render the ProRes LT .mov (`-p`), drop it on a timeline at the matching project rate (or open
+it directly in QuickTime Player) and play out to the monitor under test. Measure the same
+way. In Resolve this is a direct check of the Video I/O "audio offset" setting under
+Preferences > Video and Audio I/O.
 
 ## Using it in general
 

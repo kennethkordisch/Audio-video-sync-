@@ -77,6 +77,7 @@ struct ContentView: View {
                 }
 
                 Section("Pattern") {
+                    Group {
                     Picker("Event every", selection: $model.spec.periodSeconds) {
                         Text("1 s").tag(1.0)
                         Text("2 s").tag(2.0)
@@ -103,6 +104,7 @@ struct ContentView: View {
                     }
                     Picker("Channels", selection: $model.spec.channelMode) {
                         ForEach(ChannelMode.allCases) { m in Text(m.rawValue).tag(m) }
+                    }
                     }
                     Toggle("Dim caption with event counter", isOn: $model.spec.showCaption)
                     Toggle("Burn in timecode and frame number (non-drop)", isOn: $model.spec.burnInTimecode)

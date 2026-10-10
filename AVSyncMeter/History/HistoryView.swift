@@ -64,14 +64,16 @@ struct RunRow: View {
 }
 
 struct RunDetailView: View {
-    @State private var store = RunStore.shared
+    @State private var store: RunStore
     @State private var run: RunRecord
     @State private var compareID: UUID?
     @State private var editingLabel = false
     @State private var newLabel = ""
 
+    @MainActor
     init(run: RunRecord) {
         _run = State(initialValue: run)
+        _store = State(initialValue: RunStore.shared)
     }
 
     private var comparison: RunRecord? {

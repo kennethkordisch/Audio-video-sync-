@@ -14,7 +14,7 @@ struct OffsetChart: View {
                     .foregroundStyle(by: .value("Channel", showBands ? (p.band == 0 ? "Left" : "Right") : "Offset"))
                     .symbolSize(20)
             }
-            RuleMark(y: .value("Zero", 0)).foregroundStyle(.secondary.opacity(0.5))
+            RuleMark(y: .value("Zero", 0.0)).foregroundStyle(.secondary.opacity(0.5))
             RuleMark(y: .value("Lead limit", -SyncStandards.ebuLeadLimitMs))
                 .foregroundStyle(.orange.opacity(0.5))
                 .lineStyle(StrokeStyle(dash: [4, 4]))

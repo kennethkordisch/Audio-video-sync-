@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiftUI
 
 /// One point of an offset-vs-time series, for charts and reports.
 struct RunPoint: Codable, Identifiable {

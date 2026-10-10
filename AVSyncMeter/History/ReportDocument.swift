@@ -41,11 +41,12 @@ struct ReportView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("AV sync measurement").font(.title.bold())
-            Text(run.label.isEmpty ? "Untitled run" : run.label).font(.title3)
-            Text(run.date, format: .dateTime).foregroundStyle(.secondary)
-
-            Divider()
+            Group {
+                Text("AV sync measurement").font(.title.bold())
+                Text(run.label.isEmpty ? "Untitled run" : run.label).font(.title3)
+                Text(run.date, format: .dateTime).foregroundStyle(.secondary)
+                Divider()
+            }
             Text(SyncStandards.describe(offsetMs: run.headlineOffsetMs)).font(.title2.bold())
             Text(String(format: "%+.1f ms = %+.2f frames at %@ fps, %@", run.headlineOffsetMs, run.headlineOffsetFrames,
                         run.frameRateLabel, run.offsetAtScreenMs != nil ? "at the screen (sound travel removed)" : "at the phone"))

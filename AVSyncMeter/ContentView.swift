@@ -7,6 +7,8 @@ struct ContentView: View {
                 .tabItem { Label("Measure", systemImage: "timer") }
             TestPatternView()
                 .tabItem { Label("Test Pattern", systemImage: "play.rectangle") }
+            HistoryView()
+                .tabItem { Label("History", systemImage: "clock.arrow.circlepath") }
             SettingsView()
                 .tabItem { Label("Settings", systemImage: "gearshape") }
         }

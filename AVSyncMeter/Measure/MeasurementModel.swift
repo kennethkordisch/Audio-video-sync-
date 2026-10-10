@@ -40,6 +40,7 @@ final class MeasurementModel {
 
     private let engine = CaptureEngine()
     private let pipeline = AnalysisPipeline()
+    private let captionReader = CaptionReader()
     private var ranger: LiDARRanger?
     private var runTask: Task<Void, Never>?
 
@@ -58,6 +59,16 @@ final class MeasurementModel {
         pipeline.onUpdate = { @Sendable [weak self] snapshot in
             Task { @MainActor [weak self] in
                 self?.receive(snapshot)
+            }
+        }
+        pipeline.onRequestFrame = { @Sendable [engine] in engine.wantsFrameSnapshot = true }
+        engine.onFrameSnapshot = { @Sendable [weak self] pixelBuffer, time in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let orientation = CaptionReader.orientation(for: UIDevice.current.orientation)
+                self.captionReader.read(pixelBuffer, orientation: orientation) { [pipeline] reading in
+                    pipeline.attachLabel(eventNumber: reading.eventNumber, timecode: reading.timecode, frameTime: time)
+                }
             }
         }
     }
@@ -152,6 +163,36 @@ final class MeasurementModel {
 
     var calibrationSavedMs: Double?
 
+    // MARK: - Saving
+
+    /// Builds a history record from the current results.
+    func makeRecord(label: String) -> RunRecord {
+        let pairs = snapshot.pairs
+        let t0 = pairs.first?.flashTime ?? 0
+        let points = pairs.enumerated().map { index, pair in
+            RunPoint(id: index, time: pair.flashTime - t0, offsetMs: pair.offset * 1000, band: pair.band, eventNumber: pair.eventNumber)
+        }
+        let bands = snapshot.bandSummaries
+        return RunRecord(
+            label: label,
+            mode: settings.mode.title + (settings.driftMode && settings.mode == .repeating ? " (drift)" : ""),
+            frameRateLabel: frameRate.label,
+            fps: frameRate.fps,
+            eventCount: snapshot.summary.count,
+            offsetAtPhoneMs: (offsetAtListener ?? 0) * 1000,
+            offsetAtScreenMs: offsetAtSource.map { $0 * 1000 },
+            madMs: (snapshot.summary.mad ?? 0) * 1000,
+            distanceMeters: distance?.meters,
+            distanceSource: distance?.source.rawValue,
+            driftMsPerMinute: snapshot.drift?.slopeMsPerMinute,
+            slipCount: snapshot.slips.count,
+            leftOffsetMs: bands.count == 2 ? bands[0].median.map { $0 * 1000 } : nil,
+            rightOffsetMs: bands.count == 2 ? bands[1].median.map { $0 * 1000 } : nil,
+            cameraOffsetMs: settings.cameraTimestampOffsetMs,
+            points: points,
+            csv: resultsCSV())
+    }
+
     // MARK: - Frames and export
 
     var frameRate: PatternFrameRate { settings.frameRate }
@@ -190,12 +231,14 @@ final class MeasurementModel {
             lines.append(String(format: "# drift_ppm,%.1f", drift.partsPerMillion))
         }
         lines.append("# sign: positive offset = audio later than video")
-        lines.append("event,run_time_s,flash_time_s,beep_time_s,offset_ms,offset_frames")
+        lines.append("event,run_time_s,flash_time_s,beep_time_s,offset_ms,offset_frames,channel,caption_event,caption_timecode")
         let t0 = snapshot.pairs.first?.flashTime ?? 0
         for (i, pair) in snapshot.pairs.enumerated() {
-            lines.append(String(format: "%d,%.4f,%.6f,%.6f,%.3f,%.3f",
+            let channel = settings.channelIDTones ? (pair.band == 0 ? "L" : "R") : "both"
+            lines.append(String(format: "%d,%.4f,%.6f,%.6f,%.3f,%.3f,%@,%@,%@",
                                 i + 1, pair.flashTime - t0, pair.flashTime, pair.beepTime,
-                                pair.offset * 1000, frames(fromSeconds: pair.offset)))
+                                pair.offset * 1000, frames(fromSeconds: pair.offset),
+                                channel, pair.eventNumber.map(String.init) ?? "", pair.timecode ?? ""))
         }
         return lines.joined(separator: "\n") + "\n"
     }

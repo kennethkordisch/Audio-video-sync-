@@ -37,6 +37,9 @@ enum TestPattern {
     static let nominalLeadIn: TimeInterval = 1.0
     static let toneFrequency: Double = 1000
     static let toneDuration: TimeInterval = 0.05
+    /// Channel-ID patterns alternate left = toneFrequency and right = toneFrequency * this ratio.
+    static let channelIDRatio: Double = 1.6
+    static var rightToneFrequency: Double { toneFrequency * channelIDRatio }
 
     static func periodFrames(_ rate: PatternFrameRate) -> Int {
         Int((nominalPeriod * rate.fps).rounded())

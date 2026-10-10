@@ -81,6 +81,26 @@ Sound travels about 2.9 ms per metre (temperature adjustable in Settings).
    read the slope. 60 ms/min means a 1000/1001 clock mismatch somewhere (23.976 project with
    24 fps media or a 48.048 kHz audio clock, for instance).
 
+## Channel ID, history, reports
+
+* **Channel-ID tones.** The Mac app's "Alternate L / R" mode (and `make_test_pattern.sh -c`)
+  plays even events on the left channel at 1 kHz and odd events on the right at 1.6 kHz. With
+  "Channel-ID tones" on in the iOS Settings, the phone tells the two apart and reports a
+  separate offset per channel plus L−R, which exposes per-channel latency in soundbars and
+  AVR processing. The live card shows which channel the last beep came from, so you can check
+  by ear or eye that left really is left.
+* **Caption reading.** After each flash the phone grabs one frame and OCRs the dim event
+  counter (and timecode, if burned in). When it succeeds, the event number and timecode go
+  into the CSV, so a frame slip in a drift run points at a place in the timeline. It needs the
+  screen reasonably large and bright in the frame; it fails silently otherwise.
+* **History.** "Save run" on the Measure tab stores the run with a label (chain or seat). The
+  History tab lists runs, shows a chart of offset vs. time, compares any two runs (difference
+  in ms and frames, with a note whether it exceeds the measurement spread, and the seat-to-
+  seat sound-travel difference), and exports CSV or a one-page PDF report. Several runs with
+  seat labels make a room survey.
+* **PDF report.** Headline offset in ms and frames, verdict, distance, drift, per-channel
+  numbers, the chart, and an optional comparison. Available from a finished run and from History.
+
 ## Measurement modes
 
 The Measure tab has three modes:
@@ -123,8 +143,19 @@ AVFoundation, no ffmpeg needed for QuickTime formats:
 * Video: ProRes 422 Proxy / LT / 422 / HQ, H.264, HEVC. Audio: 24- or 16-bit PCM, or AAC.
   ProRes and PCM go in `.mov`; H.264/HEVC with AAC go in `.mp4`.
 * Pattern: event period 1 to 5 s, flash length in frames, tone 500 Hz / 1 kHz / 2 kHz, tone
-  length and level, both channels or alternating left/right per event (to catch swapped
-  channels), optional dim caption with event counter, optional timecode and frame-number burn-in.
+  length and level, one tone on both channels or channel-ID mode (left = tone, right = 1.6 x
+  tone, alternating), optional dim caption with event counter, optional timecode and
+  frame-number burn-in, optional 5/10/30 s slate with 75% colour bars, PLUGE row and a
+  one-step-per-frame motion bar before the pattern starts.
+* Presets for the common jobs (Avid 23.976 check, Avid 30 min drift, Resolve ProRes Proxy,
+  broadcast 29.97 H.264, channel ID, all rates for the app bundle).
+* Command-line mode for scripting:
+
+  ```
+  AVSyncPatternMaker.app/Contents/MacOS/AVSyncPatternMaker --render \
+      --fps 23.976 --duration 600 --codec proxy --audio pcm24 --dnxhr lb --timecode --out ~/Movies
+  AVSyncPatternMaker.app/Contents/MacOS/AVSyncPatternMaker --render --preset "Avid 23.976 drift"
+  ```
 * DNxHR LB / SQ / HQ in OP1a MXF with 24-bit PCM for Media Composer, through an ffmpeg that is
   bundled inside the app. The first build runs `tools/fetch-ffmpeg-macos.sh`, which downloads a
   static ffmpeg for your Mac's architecture into `Vendor/macos/` (gitignored); the "Bundle
@@ -158,7 +189,8 @@ project, and add the two privacy strings (`NSCameraUsageDescription`,
 
 ```
 AVSyncMeter/                      app sources (Swift)
-  Analysis/   FlashDetector, BeepDetector, SyncAnalyzer, DriftAnalyzer, AnalysisPipeline, standards, stats
+  Analysis/   FlashDetector, BeepDetector (multi-tone), SyncAnalyzer, DriftAnalyzer, CaptionReader (OCR), pipeline
+  History/    saved runs (RunStore), History tab, offset chart, PDF report
   Capture/    AVCaptureSession engine, luminance sampler, audio conversion
   Distance/   LiDAR ranger, screen-size (pinhole) ranger, speed of sound
   Measure/    measurement state machine + UI + camera preview + CSV export

@@ -139,7 +139,7 @@ final class PatternWriter {
             let pixelBuffer: CVPixelBuffer
             if spec.isFlashFrame(frame) {
                 pixelBuffer = white
-            } else if spec.burnInTimecode {
+            } else if spec.burnInTimecode || spec.isSlateFrame(frame) {
                 guard let pool = adaptor.pixelBufferPool else { throw WriterError.setup("no pixel buffer pool") }
                 var pooled: CVPixelBuffer?
                 CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pool, &pooled)

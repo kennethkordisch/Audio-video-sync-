@@ -12,6 +12,8 @@ struct SettingsView: View {
     @AppStorage(AppSettings.Key.targetEventCount) private var targetEventCount = 20
     @AppStorage(AppSettings.Key.driftMode) private var driftMode = false
     @AppStorage(AppSettings.Key.driftDurationMinutes) private var driftDurationMinutes = 5
+    @AppStorage(AppSettings.Key.channelIDTones) private var channelIDTones = false
+    @AppStorage(AppSettings.Key.readCaption) private var readCaption = true
 
     private var selectedRate: PatternFrameRate { TestPattern.frameRate(matching: patternFrameRate) }
 
@@ -40,12 +42,14 @@ struct SettingsView: View {
                         Stepper("Stop after \(targetEventCount) events", value: $targetEventCount, in: 3...1800)
                     }
                     numberField("Minimum flash contrast (0-255)", value: $minFlashContrast)
+                    Toggle("Channel-ID tones (L = 1 kHz, R = 1.6 kHz)", isOn: $channelIDTones)
+                    Toggle("Read event number from the caption (OCR)", isOn: $readCaption)
                 } header: {
                     Text("Measurement")
                 } footer: {
                     Text(driftMode
                          ? "Drift mode keeps measuring for the chosen time and fits a straight line through offset vs. time. A 0.1% clock mismatch (23.976 vs 24, or 48 vs 48.048 kHz) shows up as 60 ms per minute. Use a long pattern file for this: the bundled ones are 60 s, so render one with tools/make_test_pattern.sh -d 1800 and play it from the source under test; the phone's own looping player would add a jump at every loop."
-                         : "Each event is one flash/beep pair, 2 s apart; 20 events take about 40 s. Lower the contrast threshold if a dim projector is not detected; raise it if room light causes false flashes.")
+                         : "Each event is one flash/beep pair, 2 s apart; 20 events take about 40 s. Lower the contrast threshold if a dim projector is not detected; raise it if room light causes false flashes. Channel-ID tones match the Mac app's \"Alternate L / R\" pattern and give a separate offset per channel. Caption reading grabs one frame after each flash and OCRs the dim event counter; it needs a reasonably large, bright screen in the frame.")
                 }
 
                 Section {

@@ -87,6 +87,17 @@ into the run and its size in ms and frames. A single-frame drop or repeat shows 
 Needs at least 6 events spanning 20 s; a 5 min run resolves about 0.2 ms/min (3 ppm), which is
 far below any real clock error.
 
+## Channel identification
+
+The phone has one usable microphone for this purpose, so left and right are told apart by
+frequency, not direction: channel-ID patterns put even events on the left at f and odd events
+on the right at 1.6 f. The beep detector runs one band-pass per tone (Q = 10, about 20 dB of
+separation at this ratio) and decides the band 4 ms after the threshold crossing by comparing
+envelopes. 1.6 was chosen so neither tone is a harmonic of the other; speaker distortion of a
+1 kHz tone lands at 2 and 3 kHz, not at 1.6 kHz. Offsets are then summarised per band.
+Whether "left" actually comes out of the left speaker is still a human check: the live card
+names the channel of each beep as it happens.
+
 ## Calibration
 
 The phone's camera and microphone timestamps come from one clock, but the pipelines in front

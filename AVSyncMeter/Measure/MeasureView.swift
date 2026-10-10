@@ -3,6 +3,9 @@ import SwiftUI
 struct MeasureView: View {
     @State private var model = MeasurementModel()
     @AppStorage(AppSettings.Key.measurementMode) private var modeRaw = MeasurementMode.repeating.rawValue
+    @State private var savingRun = false
+    @State private var runLabel = ""
+    @State private var savedMessage: String?
 
     private var mode: MeasurementMode { MeasurementMode(rawValue: modeRaw) ?? .repeating }
 
@@ -38,6 +41,16 @@ struct MeasureView: View {
         .onAppear { model.refreshSettings() }
         .onChange(of: modeRaw) { _, _ in model.refreshSettings() }
         .onDisappear { model.stop() }
+        .alert("Save run", isPresented: $savingRun) {
+            TextField("Chain or seat, e.g. DNxIO HDMI, row 3", text: $runLabel)
+            Button("Save") {
+                RunStore.shared.add(model.makeRecord(label: runLabel))
+                savedMessage = "Saved \"\(runLabel)\" to History."
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Label it by the chain under test or by the seat so you can compare runs in History.")
+        }
     }
 
     private var modePicker: some View {
@@ -188,12 +201,40 @@ struct MeasureView: View {
                         .font(.caption.monospaced())
                         .foregroundStyle(.secondary)
                 }
+                if model.snapshot.bandSummaries.count == 2 {
+                    Divider()
+                    channelRows
+                }
+                if let labelled = model.snapshot.pairs.last(where: { $0.eventNumber != nil || $0.timecode != nil }) {
+                    Text("Caption read: event \(labelled.eventNumber.map(String.init) ?? "?")\(labelled.timecode.map { " at \($0)" } ?? "")")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 if !model.isRunning {
-                    ShareLink(item: ResultsExport(csv: model.resultsCSV()),
-                              preview: SharePreview("AV sync results (CSV)")) {
-                        Label("Export CSV of all \(summary.count) events", systemImage: "square.and.arrow.up")
+                    HStack {
+                        Button {
+                            runLabel = ""
+                            savedMessage = nil
+                            savingRun = true
+                        } label: {
+                            Label("Save run", systemImage: "tray.and.arrow.down")
+                        }
+                        .buttonStyle(.bordered)
+                        ShareLink(item: ResultsExport(csv: model.resultsCSV()),
+                                  preview: SharePreview("AV sync results (CSV)")) {
+                            Label("CSV", systemImage: "tablecells")
+                        }
+                        .buttonStyle(.bordered)
+                        ShareLink(item: ReportDocument(run: model.makeRecord(label: runLabel), comparison: nil),
+                                  preview: SharePreview("AV sync report (PDF)")) {
+                            Label("PDF", systemImage: "doc.richtext")
+                        }
+                        .buttonStyle(.bordered)
                     }
                     .font(.subheadline)
+                    if let savedMessage {
+                        Text(savedMessage).font(.footnote).foregroundStyle(.green)
+                    }
                 }
             }
         }
@@ -215,6 +256,22 @@ struct MeasureView: View {
                 .foregroundStyle(color)
                 .font(.subheadline.bold())
             Text(verdict.detail).font(.footnote).foregroundStyle(.secondary)
+        }
+    }
+
+    private var channelRows: some View {
+        let bands = model.snapshot.bandSummaries
+        return VStack(alignment: .leading, spacing: 4) {
+            Text("Per channel (channel-ID pattern)").font(.subheadline.bold())
+            HStack {
+                statistic("Left (1 kHz)", bands[0].median.map { String(format: "%+.1f ms (%d)", $0 * 1000, bands[0].count) } ?? "-")
+                statistic("Right (1.6 kHz)", bands[1].median.map { String(format: "%+.1f ms (%d)", $0 * 1000, bands[1].count) } ?? "-")
+                if let l = bands[0].median, let r = bands[1].median {
+                    statistic("L − R", String(format: "%+.1f ms", (l - r) * 1000))
+                }
+            }
+            Text("If the two differ by more than the spread, the channels have different latency (common with soundbars and AVR DSP). Watch which speaker plays which tone to confirm left/right are not swapped.")
+                .font(.footnote).foregroundStyle(.secondary)
         }
     }
 
@@ -376,7 +433,11 @@ struct MeasureView: View {
                 statistic("Luma", String(format: "%.0f", s.lumaLevel))
                 statistic("Baseline", s.lumaBaseline.map { String(format: "%.0f", $0) } ?? "-")
                 statistic("Noise floor", decibels(s.audioNoiseFloor))
-                statistic("Format", model.formatSummary.isEmpty ? "-" : model.formatSummary)
+                if model.settings.channelIDTones {
+                    statistic("Last beep", s.lastBeepBand.map { $0 == 0 ? "LEFT 1 kHz" : "RIGHT 1.6 kHz" } ?? "-")
+                } else {
+                    statistic("Format", model.formatSummary.isEmpty ? "-" : model.formatSummary)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

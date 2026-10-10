@@ -35,6 +35,8 @@ enum AppSettings {
         static let driftMode = "driftMode"
         static let driftDurationMinutes = "driftDurationMinutes"
         static let measurementMode = "measurementMode"
+        static let channelIDTones = "channelIDTones"
+        static let readCaption = "readCaption"
     }
 
     static func registerDefaults() {
@@ -51,6 +53,8 @@ enum AppSettings {
             Key.driftMode: false,
             Key.driftDurationMinutes: 5,
             Key.measurementMode: MeasurementMode.repeating.rawValue,
+            Key.channelIDTones: false,
+            Key.readCaption: true,
         ])
     }
 
@@ -68,6 +72,8 @@ enum AppSettings {
         var driftMode: Bool
         var driftDurationMinutes: Int
         var mode: MeasurementMode
+        var channelIDTones: Bool
+        var readCaption: Bool
 
         var screenDiagonalMeters: Double { screenDiagonalInches * 0.0254 }
         var frameRate: PatternFrameRate { TestPattern.frameRate(matching: patternFrameRate) }
@@ -86,7 +92,9 @@ enum AppSettings {
                 patternFrameRate: d.double(forKey: Key.patternFrameRate),
                 driftMode: d.bool(forKey: Key.driftMode),
                 driftDurationMinutes: max(1, d.integer(forKey: Key.driftDurationMinutes)),
-                mode: MeasurementMode(rawValue: d.string(forKey: Key.measurementMode) ?? "") ?? .repeating
+                mode: MeasurementMode(rawValue: d.string(forKey: Key.measurementMode) ?? "") ?? .repeating,
+                channelIDTones: d.bool(forKey: Key.channelIDTones),
+                readCaption: d.bool(forKey: Key.readCaption)
             )
         }
     }

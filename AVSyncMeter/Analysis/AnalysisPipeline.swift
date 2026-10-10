@@ -12,6 +12,9 @@ final class AnalysisPipeline {
         var pairs: [SyncPair] = []
         var drift: DriftEstimate?
         var slips: [FrameSlip] = []
+        /// Per tone band (0 = left/base, 1 = right) when channel-ID tones are enabled.
+        var bandSummaries: [SyncSummary] = []
+        var lastBeepBand: Int?
         var flashCount = 0
         var beepCount = 0
         var lumaLevel = 0.0
@@ -31,6 +34,8 @@ final class AnalysisPipeline {
     }
 
     var onUpdate: (@Sendable (Snapshot) -> Void)?
+    /// Asks the capture engine for one full frame (for caption OCR); called on the analysis queue.
+    var onRequestFrame: (@Sendable () -> Void)?
 
     private let queue = DispatchQueue(label: "AVSyncMeter.analysis", qos: .userInteractive)
     private var settings = AppSettings.Snapshot.load()
@@ -46,14 +51,21 @@ final class AnalysisPipeline {
     private var distanceEstimates: [Double] = []
     private var lastFrameTime: Double?
     private var lastEmit: Double = 0
+    private var frameRequestDueTime: Double?
+    private var lastFlashOnset: Double?
 
     func reset(settings: AppSettings.Snapshot) {
         queue.async {
             self.settings = settings
             self.flashDetector.reset()
             self.flashDetector.minContrast = settings.minFlashContrast
+            self.beepDetector.frequencies = settings.channelIDTones
+                ? [TestPattern.toneFrequency, TestPattern.rightToneFrequency]
+                : [TestPattern.toneFrequency]
             self.beepDetector.reset()
             self.analyzer.reset()
+            self.frameRequestDueTime = nil
+            self.lastFlashOnset = nil
             self.snapshot = Snapshot()
             self.screenRegion = nil
             self.lastIdleFrame = nil
@@ -71,6 +83,16 @@ final class AnalysisPipeline {
 
     func ingest(_ chunk: AudioSampleConverter.Chunk) {
         queue.async { self.handle(chunk) }
+    }
+
+    /// Result of reading the burned-in caption from a frame grabbed shortly after a flash.
+    func attachLabel(eventNumber: Int?, timecode: String?, frameTime: Double) {
+        queue.async {
+            guard eventNumber != nil || timecode != nil, let onset = self.lastFlashOnset else { return }
+            self.analyzer.label(eventNumber: eventNumber, timecode: timecode, nearFlashTime: onset)
+            self.refreshSummary()
+            self.emit(force: true)
+        }
     }
 
     // MARK: - Video
@@ -105,10 +127,18 @@ final class AnalysisPipeline {
         case .completed(let onset, let contrast):
             analyzer.addFlash(onset)
             snapshot.flashCount = analyzer.flashCount
+            lastFlashOnset = onset
+            if settings.readCaption {
+                frameRequestDueTime = time + 0.35   // caption is back on screen and shows this event's number
+            }
             learnScreen(contrast: contrast)
             refreshSummary()
             emit(force: true)
             return
+        }
+        if let due = frameRequestDueTime, time >= due, !flashDetector.isInFlash {
+            frameRequestDueTime = nil
+            onRequestFrame?()
         }
         emit(force: false)
     }
@@ -165,7 +195,10 @@ final class AnalysisPipeline {
         snapshot.audioLevel = beepDetector.level
         snapshot.audioNoiseFloor = beepDetector.noiseFloor
         guard !onsets.isEmpty else { emit(force: false); return }
-        for t in onsets { analyzer.addBeep(t) }
+        for onset in onsets {
+            analyzer.addBeep(onset.time, band: onset.band)
+            snapshot.lastBeepBand = onset.band
+        }
         snapshot.beepCount = analyzer.beepCount
         refreshSummary()
         emit(force: true)
@@ -177,6 +210,7 @@ final class AnalysisPipeline {
         snapshot.summary = analyzer.summary
         snapshot.recentOffsets = Array(analyzer.offsets.suffix(12))
         snapshot.pairs = analyzer.pairs
+        snapshot.bandSummaries = settings.channelIDTones ? [analyzer.summary(band: 0), analyzer.summary(band: 1)] : []
         snapshot.drift = DriftAnalyzer.estimate(pairs: analyzer.pairs)
         snapshot.slips = DriftAnalyzer.slips(pairs: analyzer.pairs,
                                              frameDurationMs: settings.frameRate.frameDuration * 1000,

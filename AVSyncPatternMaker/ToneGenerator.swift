@@ -19,16 +19,21 @@ struct ToneGenerator {
     func samples(from startSample: Int, count: Int) -> [Float] {
         var out = [Float](repeating: 0, count: count * 2)
         let end = startSample + count
-        let omega = 2 * Double.pi * spec.toneFrequency / spec.sampleRate
         for (eventIndex, burstStart) in eventStarts.enumerated() {
             let burstEnd = burstStart + burstSamples
             guard burstEnd > startSample, burstStart < end else { continue }
             let left: Bool
             let right: Bool
+            let frequency: Double
             switch spec.channelMode {
-            case .both: left = true; right = true
-            case .alternate: left = eventIndex % 2 == 0; right = !left
+            case .both:
+                left = true; right = true
+                frequency = spec.toneFrequency
+            case .alternate:
+                left = eventIndex % 2 == 0; right = !left
+                frequency = left ? spec.toneFrequency : spec.rightToneFrequency
             }
+            let omega = 2 * Double.pi * frequency / spec.sampleRate
             for n in max(burstStart, startSample)..<min(burstEnd, end) {
                 let k = n - burstStart
                 var gain = spec.toneAmplitude

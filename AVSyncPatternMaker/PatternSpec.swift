@@ -90,8 +90,8 @@ enum AudioFormat: String, CaseIterable, Identifiable {
 }
 
 enum ChannelMode: String, CaseIterable, Identifiable {
-    case both = "Both channels"
-    case alternate = "Alternate L / R per event"
+    case both = "Both channels, one tone"
+    case alternate = "Channel ID: L = tone, R = 1.6 x tone, alternating"
     var id: String { rawValue }
 }
 
@@ -136,9 +136,17 @@ struct PatternSpec {
     var channelMode: ChannelMode = .both
     var showCaption = true
     var burnInTimecode = false
+    /// Seconds of colour bars / PLUGE / motion slate before the pattern starts (0 = none).
+    var slateSeconds: Double = 0
+
+    /// Right-channel tone frequency in channel-ID mode (mirrors AVSyncMeter's TestPattern.channelIDRatio).
+    static let channelIDRatio = 1.6
+    var rightToneFrequency: Double { toneFrequency * Self.channelIDRatio }
 
     // Derived frame grid. Events sit on whole frames; tone starts at the first white frame's time.
-    var firstEventFrame: Int { Int((leadInSeconds * frameRate.fps).rounded()) }
+    var slateFrames: Int { Int((slateSeconds * frameRate.fps).rounded()) }
+    var firstEventFrame: Int { slateFrames + Int((leadInSeconds * frameRate.fps).rounded()) }
+    func isSlateFrame(_ frame: Int) -> Bool { frame < slateFrames }
     var periodFrames: Int { max(1, Int((periodSeconds * frameRate.fps).rounded())) }
     var totalFrames: Int { Int((durationSeconds * frameRate.fps).rounded()) }
     var toneAmplitude: Double { pow(10, toneLevelDBFS / 20) }

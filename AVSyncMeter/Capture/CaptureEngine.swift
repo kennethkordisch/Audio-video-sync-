@@ -40,6 +40,11 @@ final class CaptureEngine: NSObject {
     /// Called on a background queue for every audio buffer.
     var onAudio: (@Sendable (AudioSampleConverter.Chunk) -> Void)?
 
+    /// Set to true to receive the next full frame through `onFrameSnapshot` (one shot).
+    var wantsFrameSnapshot = false
+    /// Called on the video queue with a retained pixel buffer and its capture time.
+    var onFrameSnapshot: (@Sendable (CVPixelBuffer, Double) -> Void)?
+
     private(set) var nominalFrameRate: Double = 0
     private(set) var formatSummary: String = ""
 
@@ -227,6 +232,11 @@ extension CaptureEngine: AVCaptureVideoDataOutputSampleBufferDelegate, AVCapture
     private func handleVideo(_ sampleBuffer: CMSampleBuffer) {
         guard let onLumaFrame, let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         let pts = CMTimeGetSeconds(CMSampleBufferGetPresentationTimeStamp(sampleBuffer))
+
+        if wantsFrameSnapshot, let onFrameSnapshot {
+            wantsFrameSnapshot = false
+            onFrameSnapshot(pixelBuffer, pts)
+        }
 
         var focal: Double?
         if let attachment = CMGetAttachment(sampleBuffer, key: kCMSampleBufferAttachmentKey_CameraIntrinsicMatrix, attachmentModeOut: nil),

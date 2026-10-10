@@ -18,6 +18,8 @@
 #     -m  also write DNxHR LB / 24-bit PCM MXF (OP1a) for Avid Media Composer link/import
 #     -p  also write ProRes 422 Proxy / 24-bit PCM QuickTime (.mov) for DaVinci Resolve, QuickTime Player, Premiere
 #     -P  ProRes flavour for -p: proxy (default), lt, 422, hq
+#     -c  channel-ID tones: alternate left (1 kHz) and right (1.6 kHz) per event (matches the
+#         iOS app's "Channel-ID tones" setting and the Mac app's "Alternate L / R" mode)
 #     fps one or more of 23.976 24 25 29.97 30 50 59.94 60, or "all" (default)
 #
 # Requires ffmpeg with libx264, aac, dnxhd, prores_ks, drawbox, drawtext, aevalsrc (stock builds have them).
@@ -29,7 +31,8 @@ SIZE="1920x1080"
 WRITE_MXF=0
 WRITE_PRORES=0
 PRORES_FLAVOUR="proxy"
-while getopts "o:d:s:mpP:" opt; do
+CHANNEL_ID=0
+while getopts "o:d:s:mpP:c" opt; do
   case $opt in
     o) OUT_DIR="$OPTARG" ;;
     d) DURATION="$OPTARG" ;;
@@ -37,6 +40,7 @@ while getopts "o:d:s:mpP:" opt; do
     m) WRITE_MXF=1 ;;
     p) WRITE_PRORES=1 ;;
     P) PRORES_FLAVOUR="$OPTARG" ;;
+    c) CHANNEL_ID=1 ;;
     *) echo "bad option" >&2; exit 2 ;;
   esac
 done
@@ -95,6 +99,7 @@ for RATE in "${RATES[@]}"; do
   # 2 white frames at <= 30 fps (67-83 ms), 3 at >= 50 fps (50-60 ms).
   FLASH_FRAMES=$(python3 -c "print(2 if $NUM/$DEN <= 31 else 3)")
   BASENAME="avsync_${H}p${LABEL}"
+  [ "$CHANNEL_ID" = "1" ] && BASENAME="${BASENAME}_chid"
 
   # Video: frame-number based timeline so the flash lands on exact frames.
   EVENT_EXPR="gte(n,${F0})*lt(mod(n-${F0},${P}),${FLASH_FRAMES})"
@@ -108,7 +113,17 @@ for RATE in "${RATES[@]}"; do
   # Audio: position in frames pf = t*fps - F0; seconds since the current event ph.
   PF="(t*${NUM}/${DEN}-${F0})"
   PH="(mod(${PF},${P})*${DEN}/${NUM})"
-  AEXPR="if(gte(${PF},0)*lt(${PH},${TONE_S}), ${TONE_AMP}*sin(2*PI*${TONE_HZ}*t)*min(1,${PH}/${RAMP_S})*min(1,(${TONE_S}-${PH})/${RAMP_S}), 0)"
+  ENV="min(1,${PH}/${RAMP_S})*min(1,(${TONE_S}-${PH})/${RAMP_S})"
+  if [ "$CHANNEL_ID" = "1" ]; then
+    # Even events: left channel at TONE_HZ. Odd events: right channel at 1.6 x TONE_HZ.
+    TONE_HZ_R=$(python3 -c "print($TONE_HZ*1.6)")
+    EVEN="eq(mod(floor(${PF}/${P}),2),0)"
+    AEXPR_L="if(gte(${PF},0)*lt(${PH},${TONE_S})*${EVEN}, ${TONE_AMP}*sin(2*PI*${TONE_HZ}*${PH})*${ENV}, 0)"
+    AEXPR_R="if(gte(${PF},0)*lt(${PH},${TONE_S})*(1-${EVEN}), ${TONE_AMP}*sin(2*PI*${TONE_HZ_R}*${PH})*${ENV}, 0)"
+    AEXPR="${AEXPR_L}|${AEXPR_R}"
+  else
+    AEXPR="if(gte(${PF},0)*lt(${PH},${TONE_S}), ${TONE_AMP}*sin(2*PI*${TONE_HZ}*t)*${ENV}, 0)"
+  fi
 
   common=(
     -f lavfi -i "color=c=black:s=${W}x${H}:r=${FPS_RATIONAL}:d=${DURATION}"

@@ -22,6 +22,19 @@ final class GeneratorModel {
         }
     }
 
+    var selectedPreset: Preset?
+
+    func applyPreset(_ preset: Preset) {
+        var dnx = alsoDNxHR
+        var flavour = dnxFlavour
+        var all = allFrameRates
+        preset.apply(&spec, &dnx, &flavour, &all)
+        alsoDNxHR = dnx && ffmpeg != nil
+        dnxFlavour = flavour
+        allFrameRates = all
+        selectedPreset = preset
+    }
+
     var isRunning = false
     var progress = 0.0
     var status = "Ready"

@@ -11,6 +11,25 @@ struct ContentView: View {
         @Bindable var model = model
         VStack(spacing: 0) {
             Form {
+                Section("Preset") {
+                    Picker("Start from", selection: $model.selectedPreset) {
+                        Text("Custom").tag(Preset?.none)
+                        ForEach(Preset.all) { preset in
+                            Text(preset.name).tag(Preset?.some(preset))
+                        }
+                    }
+                    .onChange(of: model.selectedPreset) { _, newValue in
+                        if let newValue { model.applyPreset(newValue) }
+                    }
+                    if let preset = model.selectedPreset {
+                        Text(preset.detail).font(.footnote).foregroundStyle(.secondary)
+                    }
+                    Text("Command line: AVSyncPatternMaker.app/Contents/MacOS/AVSyncPatternMaker --render --fps 23.976 --duration 600 --codec proxy --dnxhr lb --out ~/Movies")
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+
                 Section("Output") {
                     LabeledContent("Folder") {
                         HStack {
@@ -87,6 +106,16 @@ struct ContentView: View {
                     }
                     Toggle("Dim caption with event counter", isOn: $model.spec.showCaption)
                     Toggle("Burn in timecode and frame number (non-drop)", isOn: $model.spec.burnInTimecode)
+                    Picker("Slate before pattern", selection: $model.spec.slateSeconds) {
+                        Text("None").tag(0.0)
+                        Text("5 s").tag(5.0)
+                        Text("10 s").tag(10.0)
+                        Text("30 s").tag(30.0)
+                    }
+                    if model.spec.slateSeconds > 0 {
+                        Text("75% colour bars, a PLUGE row (black, +2%, +4%, 75%, 100%) and a bar moving one step per frame for judder checks. Events start after the slate.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
                     Text("Events start at frame \(model.spec.firstEventFrame) and repeat every \(model.spec.periodFrames) frames; the tone starts on the first white frame's timestamp. Period and lead-in are rounded to whole frames so 23.976 and 29.97 files carry no sub-frame offset.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)

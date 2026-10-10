@@ -100,6 +100,12 @@ final class LevelMeterEngine {
 
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)
+        // An unavailable input (Simulator, no microphone) reports a 0 Hz / 0-channel format, and
+        // installing a tap with it raises an Objective-C exception that Swift cannot catch.
+        guard format.sampleRate > 0, format.channelCount > 0 else {
+            throw NSError(domain: "AVSyncMeter.level", code: 1,
+                          userInfo: [NSLocalizedDescriptionKey: "No audio input is available on this device."])
+        }
         sampleRate = format.sampleRate
         resetState()
         input.installTap(onBus: 0, bufferSize: 2048, format: format) { [weak self] buffer, _ in

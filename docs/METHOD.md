@@ -111,14 +111,13 @@ names the channel of each beep as it happens.
   weighted pink-noise levels come out within about 1 dB of a Class 2 meter once the offset is
   set, and channel-to-channel differences are good to a few tenths of a dB because the same
   microphone, position and offset apply to every channel.
-* Sequence gating: a burst starts when the C-weighted Fast level exceeds target − 20 dB for
-  0.2 s and ends when it falls 3 dB below that for 0.3 s. The Leq of the burst skips its first
-  0.5 s. Bursts are assigned to channels in the file's order, so the phone must be started
-  before the first burst and must not miss one; the table shows which channel it expects next.
-* Pink noise in the files is Kellet's refined filter on white noise, independently seeded per
-  channel, scaled to the requested RMS after a 2 s measurement; LFE is low-passed at 120 Hz
-  (2nd-order Butterworth) and re-normalised so its in-band RMS equals the other channels.
-  The shell script measures ffmpeg's `anoisesrc` pink RMS and compensates the same way.
+* Per-speaker readings: tapping a speaker integrates the C-weighted mean square for 3, 5 or
+  10 s, skipping the first 0.3 s, and stores the Leq for that name (re-tapping replaces it).
+  Trim = target − Leq, with LFE's target raised by the chosen in-band offset.
+* Auto mode gating, for files that step through channels in order: a burst starts when the
+  C-weighted Fast level exceeds target − 20 dB for 0.2 s and ends when it falls 3 dB below
+  that for 0.3 s; the Leq skips the burst's first 0.5 s; bursts are assigned to channels in
+  layout order.
 
 ## Calibration
 

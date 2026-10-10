@@ -46,6 +46,9 @@ struct LevelSnapshot {
     var sequenceActive = false
     var segmentInProgress = false
     var currentSegmentLevel: Double?
+    /// Manual timed capture in progress: channel name and 0...1 progress.
+    var capturingChannel: String?
+    var captureProgress = 0.0
     var readings: [ChannelReading] = []
 }
 
@@ -84,6 +87,9 @@ final class LevelMeterEngine {
     private var segmentSum = 0.0
     private var segmentCount = 0
     private var processedSeconds = 0.0
+
+    // Manual capture
+    private var capture: (name: String, start: Double, seconds: Double, sum: Double, count: Int)?
 
     func start() throws {
         guard !running else { return }
@@ -137,6 +143,43 @@ final class LevelMeterEngine {
         }
     }
 
+    /// Takes a C-weighted Leq of the next `seconds` for the named channel (skipping the first
+    /// 0.3 s), replacing any earlier reading for that channel. Works with any pink-noise file.
+    func capture(channel name: String, seconds: Double) {
+        queue.async {
+            self.capture = (name, self.processedSeconds, seconds, 0, 0)
+            self.onUpdate?(self.makeSnapshot())
+        }
+    }
+
+    func cancelCapture() {
+        queue.async { self.capture = nil }
+    }
+
+    func clearReadings() {
+        queue.async {
+            self.readings = []
+            self.onUpdate?(self.makeSnapshot())
+        }
+    }
+
+    func removeReading(named name: String) {
+        queue.async {
+            self.readings.removeAll { $0.name == name }
+            self.onUpdate?(self.makeSnapshot())
+        }
+    }
+
+    private func store(_ reading: ChannelReading) {
+        if let index = readings.firstIndex(where: { $0.name == reading.name }) {
+            readings[index] = reading
+        } else {
+            readings.append(reading)
+        }
+        let order = layout.channels
+        readings.sort { (order.firstIndex(of: $0.name) ?? 99) < (order.firstIndex(of: $1.name) ?? 99) }
+    }
+
     private func resetState() {
         filters = Dictionary(uniqueKeysWithValues: Weighting.allCases.map { ($0, WeightingFilter(weighting: $0, sampleRate: sampleRate)) })
         meanSquare = [:]
@@ -173,6 +216,7 @@ final class LevelMeterEngine {
         processedSeconds += Double(n) / sampleRate
 
         updateSequence(blockSumC: sums[.c] ?? 0, blockCount: n)
+        updateCapture(blockSumC: sums[.c] ?? 0, blockCount: n)
 
         let now = processedSeconds
         if now - lastEmit >= 0.1 {
@@ -204,8 +248,33 @@ final class LevelMeterEngine {
         if segmentCount > 0, segmentStart != nil {
             s.currentSegmentLevel = db(segmentSum / Double(segmentCount)) + calibrationOffset
         }
+        if let capture {
+            s.capturingChannel = capture.name
+            s.captureProgress = min(1, (processedSeconds - capture.start) / capture.seconds)
+        }
         s.readings = readings
         return s
+    }
+
+    private func updateCapture(blockSumC: Double, blockCount: Int) {
+        guard var current = capture else { return }
+        let elapsed = processedSeconds - current.start
+        if elapsed > 0.3 {
+            current.sum += blockSumC
+            current.count += blockCount
+        }
+        if elapsed >= current.seconds {
+            if current.count > 0 {
+                let id = layout.channels.firstIndex(of: current.name) ?? (100 + readings.count)
+                store(ChannelReading(id: id, name: current.name,
+                                     leq: db(current.sum / Double(current.count)) + calibrationOffset,
+                                     duration: elapsed))
+            }
+            capture = nil
+            onUpdate?(makeSnapshot())
+        } else {
+            capture = current
+        }
     }
 
     /// Detects pink-noise bursts on the C-weighted fast level and records one Leq per burst.
@@ -229,9 +298,9 @@ final class LevelMeterEngine {
                         let index = readings.count
                         let names = layout.channels
                         let name = index < names.count ? names[index] : (index == names.count ? "All" : "Extra \(index - names.count)")
-                        readings.append(ChannelReading(id: index, name: name,
-                                                       leq: db(segmentSum / Double(segmentCount)) + calibrationOffset,
-                                                       duration: now - start))
+                        store(ChannelReading(id: index, name: name,
+                                             leq: db(segmentSum / Double(segmentCount)) + calibrationOffset,
+                                             duration: now - start))
                     }
                     segmentStart = nil
                     segmentSum = 0

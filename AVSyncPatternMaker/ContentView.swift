@@ -2,7 +2,6 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var model = GeneratorModel()
-    @State private var tab = 0
 
     private let durationPresets: [(String, Double)] = [
         ("30 s", 30), ("1 min", 60), ("5 min", 300), ("10 min", 600), ("30 min", 1800), ("60 min", 3600),
@@ -11,16 +10,6 @@ struct ContentView: View {
     var body: some View {
         @Bindable var model = model
         VStack(spacing: 0) {
-            Picker("", selection: $tab) {
-                Text("Sync pattern").tag(0)
-                Text("Pink noise").tag(1)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .padding([.horizontal, .top])
-            if tab == 1 {
-                PinkNoiseView(model: model)
-            } else {
             Form {
                 Section("Preset") {
                     Picker("Start from", selection: $model.selectedPreset) {
@@ -166,7 +155,6 @@ struct ContentView: View {
                 }
             }
             .formStyle(.grouped)
-            }
 
             Divider()
             HStack {
@@ -176,11 +164,9 @@ struct ContentView: View {
                     Button("Cancel") { model.cancel() }
                         .keyboardShortcut(.cancelAction)
                 } else {
-                    Button(tab == 1 ? "Generate pink noise" : "Generate") {
-                        if tab == 1 { model.generatePink() } else { model.generate() }
-                    }
-                    .keyboardShortcut(.defaultAction)
-                    .buttonStyle(.borderedProminent)
+                    Button("Generate") { model.generate() }
+                        .keyboardShortcut(.defaultAction)
+                        .buttonStyle(.borderedProminent)
                 }
             }
             .padding()

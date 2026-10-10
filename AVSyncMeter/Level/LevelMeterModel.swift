@@ -52,6 +52,10 @@ final class LevelMeterModel {
     func resetLeq() { engine.resetLeq() }
     func startSequence() { engine.startSequence() }
     func stopSequence() { engine.stopSequence() }
+    func capture(channel: String, seconds: Double) { engine.capture(channel: channel, seconds: seconds) }
+    func cancelCapture() { engine.cancelCapture() }
+    func clearReadings() { engine.clearReadings() }
+    func removeReading(named name: String) { engine.removeReading(named: name) }
 
     /// Target for a channel: LFE gets the extra in-band offset.
     func target(for name: String, base: Double, lfeOffset: Double) -> Double {

@@ -103,7 +103,8 @@ Sound travels about 2.9 ms per metre (temperature adjustable in Settings).
 
 ## Speaker levels (pinking the room)
 
-The iOS **Levels** tab is an SPL meter and a per-speaker level sequencer:
+The iOS **Levels** tab is an SPL meter and a per-speaker trim calculator. Use your own
+pink-noise file, or the test noise in the AVR, console or monitor controller.
 
 * A, C or Z weighting; Fast (125 ms) or Slow (1 s); Leq since reset; peak; a bar against the
   target. Uses the measurement audio-session mode, so no automatic gain or processing.
@@ -111,27 +112,13 @@ The iOS **Levels** tab is an SPL meter and a per-speaker level sequencer:
   read a real SPL meter (C, slow) at the same spot, type the value and tap Match; the offset is
   stored. Without calibration, relative levels between speakers are still good to a fraction
   of a dB; only the absolute number is uncertain.
-* **Pink the speakers.** Pick the layout (stereo, 3.1, 5.1, 7.1), the target (85 / 82 / 79 /
-  76 / 73 dB) and the LFE in-band offset (+10 cinema, +4, +0). Tap Start sequence, then play
-  the pink-noise file. Each burst is gated, its C-weighted Leq is taken (skipping the first
-  half second), and the table shows measured, target and the **trim in dB** per speaker.
-  Export as CSV.
-
-Make the file with the Mac app's **Pink noise** tab or `tools/make_pink_noise.sh`:
-
-* Channel order L, R, C, LFE, Ls, Rs, Lrs, Rrs; 2 s lead-in; 10 / 20 / 30 s per channel with
-  1 s gaps; optional repeats and a final all-channels segment.
-* −20 dBFS RMS per channel (the SMPTE / cinema reference; −18 and −23 available), LFE
-  band-limited to 120 Hz.
-* Multichannel 24-bit WAV with the proper channel layout tag, and/or a QuickTime movie with the
-  same multichannel PCM track and the channel name on screen, so you can see which speaker
-  should be playing. Media Composer and Resolve both read either.
-
-```
-tools/make_pink_noise.sh -o ~/Movies 5.1                 # 5.1, 10 s per channel, -20 dBFS
-tools/make_pink_noise.sh -s 20 -l -23 -a 7.1             # 7.1, 20 s, -23 dBFS, all-channels segment
-AVSyncPatternMaker --render --pink 5.1 --segment 10 --out ~/Movies
-```
+* **Per-speaker readings.** Pick the layout (stereo, 3.1, 5.1, 7.1), the target (85 / 82 / 79 /
+  76 / 73 dB) and the LFE in-band offset (+10 cinema, +4, +0). Play noise on one speaker and
+  tap that speaker's button: a 3, 5 or 10 s C-weighted Leq is taken (skipping the first
+  0.3 s). Any order, re-tap to redo. The table shows measured, target, the **trim in dB** per
+  speaker, and the spread between speakers; export as CSV.
+* **Auto mode** for files that step through the channels in order with gaps: start it, play
+  the file, and each burst is assigned to the next channel.
 
 ## Measurement modes
 
@@ -223,7 +210,7 @@ project, and add the two privacy strings (`NSCameraUsageDescription`,
 AVSyncMeter/                      app sources (Swift)
   Analysis/   FlashDetector, BeepDetector (multi-tone), SyncAnalyzer, DriftAnalyzer, CaptionReader (OCR), pipeline
   History/    saved runs (RunStore), History tab, offset chart, PDF report
-  Level/      SPL meter (A/C/Z weighting), pink-noise sequence gating, Levels tab
+  Level/      SPL meter (A/C/Z weighting), per-speaker Leq readings, Levels tab
   Capture/    AVCaptureSession engine, luminance sampler, audio conversion
   Distance/   LiDAR ranger, screen-size (pinhole) ranger, speed of sound
   Measure/    measurement state machine + UI + camera preview + CSV export
@@ -234,7 +221,6 @@ AVSyncMeter.xcodeproj/
 AVSyncPatternMaker/               macOS pattern generator (SwiftUI + AVAssetWriter, optional ffmpeg for DNxHR)
 AVSyncPatternMaker.xcodeproj/
 tools/make_test_pattern.sh        regenerates the test pattern with ffmpeg (CLI alternative to the Mac app)
-tools/make_pink_noise.sh          multichannel pink-noise speaker-level sequence (WAV) with ffmpeg
 tools/fetch-ffmpeg-macos.sh       downloads a static macOS ffmpeg into Vendor/macos for bundling
 tools/bundle-ffmpeg.sh            Xcode build phase: copies and signs ffmpeg into the Mac app
 Vendor/macos/                     vendored ffmpeg binary (gitignored)
